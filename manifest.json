@@ -1,0 +1,10 @@
+{
+  "name": "Society of Inquiry",
+  "short_name": "Society",
+  "description": "A society dedicated to careful observation and the preservation of historical truth.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a2744",
+  "theme_color": "#1a2744"
+}
