@@ -246,6 +246,7 @@ function initScreen(screenName) {
   // After typing completes — reveal everything below
   typewriteSequence(sequence, () => {
     setTimeout(() => {
+      let firstRevealed = null;
       app.querySelectorAll(
         '.btn-primary, .btn-secondary, .finding-form, ' +
         '.investigation-prompt, .hint-section, ' +
@@ -255,7 +256,14 @@ function initScreen(screenName) {
       ).forEach(el => {
         el.style.opacity = '1';
         el.style.pointerEvents = 'auto';
+        if (!firstRevealed) firstRevealed = el;
       });
+      // Scroll first revealed element into view
+      if (firstRevealed) {
+        setTimeout(() => {
+          firstRevealed.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 200);
+      }
     }, 400);
   });
 }
@@ -637,7 +645,14 @@ function submitFinding(recordId) {
               el.style.display = el === findingForm ? 'flex' : 'block';
               el.style.opacity = '0';
               el.style.transition = 'opacity 0.6s ease';
-              setTimeout(() => { el.style.opacity = '1'; }, 50);
+              setTimeout(() => {
+                el.style.opacity = '1';
+                if (el === investigationPrompt) {
+                  setTimeout(() => {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  }, 200);
+                }
+              }, 50);
             }
           });
           if (input) {
