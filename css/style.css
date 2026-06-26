@@ -1,8 +1,12 @@
-/* Society of Inquiry — base styles */
+/* ============================================================
+   Society of Inquiry
+   Established circa 1847
+   Visual Identity — Base Stylesheet
+   ============================================================ */
 
-*,
-*::before,
-*::after {
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap');
+
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -14,136 +18,211 @@ html {
 }
 
 body {
-  background-color: #f4f0e8;
-  color: #2c2c2c;
-  font-family: Georgia, 'Times New Roman', serif;
+  background-color: #f2ead8;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  color: #1a1208;
+  font-family: 'IM Fell English', Georgia, serif;
   line-height: 1.7;
   min-height: 100dvh;
 }
 
-#app {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem;
-}
+/* ── Screen Layout ─────────────────────────────────────────── */
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: Georgia, 'Times New Roman', serif;
-  color: #1a2744;
-  line-height: 1.25;
-  margin-bottom: 0.75rem;
-}
-
-h1 {
-  font-size: 1.75rem;
-}
-
-h2 {
-  font-size: 1.375rem;
-}
-
-h3 {
-  font-size: 1.125rem;
-}
-
-p {
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-  font-size: 1rem;
-  color: #2c2c2c;
-  margin-bottom: 1.25rem;
-}
-
-button {
-  display: inline-block;
-  background-color: #1a2744;
-  color: #faf8f4;
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-  font-size: 0.9rem;
-  letter-spacing: 0.04em;
-  padding: 0.65rem 1.25rem;
-  border: none;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-button:hover,
-button:focus-visible {
-  background-color: #8b6914;
-  outline: none;
-}
-
-button:focus-visible {
-  outline: 2px solid #8b6914;
-  outline-offset: 2px;
-}
-
-/* Screen layout */
 .screen {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  max-width: 680px;
+  margin: 0 auto;
 }
 
-.site-header {
+/* ── Masthead ──────────────────────────────────────────────── */
+
+.site-masthead {
   background-color: #1a2744;
-  color: #f4f0e8;
-  padding: 1rem 1.5rem;
-  letter-spacing: 0.08em;
-  font-size: 0.85rem;
-  text-transform: uppercase;
+  color: #f2ead8;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 3px double #8b6914;
+  text-align: center;
 }
 
 .society-name {
-  font-family: Georgia, serif;
+  display: block;
+  font-family: 'IM Fell English SC', 'Small Caps', Georgia, serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  color: #f2ead8;
 }
+
+.society-established {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: #c9a84c;
+  margin-top: 0.2rem;
+  font-style: italic;
+}
+
+.record-designation {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: #c9a84c;
+  margin-top: 0.15rem;
+  text-transform: uppercase;
+}
+
+/* ── Screen Content ────────────────────────────────────────── */
 
 .screen-content {
   flex: 1;
   padding: 2rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.75rem;
 }
 
-/* Curator panel */
+/* ── Ruled Divider ─────────────────────────────────────────── */
+
+.ruled-divider {
+  border: none;
+  border-top: 1px solid #8b6914;
+  margin: 0.25rem 0;
+}
+
+/* ── Curator Panel ─────────────────────────────────────────── */
+
 .curator-panel {
-  background-color: #faf8f4;
-  border-left: 3px solid #8b6914;
+  background-color: #ede4cc;
+  border: 1px solid #8b6914;
+  border-left: 4px solid #8b6914;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  position: relative;
+}
+
+.curator-panel::before {
+  content: '✦';
+  position: absolute;
+  top: -0.6rem;
+  left: 1rem;
+  background-color: #ede4cc;
+  padding: 0 0.4rem;
+  color: #8b6914;
+  font-size: 0.7rem;
+}
+
+.curator-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8b6914;
+  font-style: normal;
+  font-family: 'IM Fell English SC', Georgia, serif;
 }
 
 .curator-voice {
-  font-family: Georgia, serif;
-  font-size: 1.1rem;
-  line-height: 1.7;
-  color: #2c2c2c;
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: #1a1208;
   font-style: italic;
 }
 
-/* Actions */
-.screen-actions {
+/* ── Record Title Block ────────────────────────────────────── */
+
+.record-title-block {
+  text-align: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #8b6914;
+  padding-bottom: 1.25rem;
+}
+
+.record-title {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 1.6rem;
+  color: #1a2744;
+  line-height: 1.3;
+  font-weight: normal;
+}
+
+.completion-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8b6914;
+  margin-top: 0.5rem;
+  font-family: 'IM Fell English SC', Georgia, serif;
+}
+
+/* ── Investigation Prompt ──────────────────────────────────── */
+
+.investigation-prompt {
+  padding: 0.5rem 0;
+}
+
+.prompt-text {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 1.15rem;
+  color: #1a2744;
+  line-height: 1.7;
+}
+
+.prompt-instructions {
+  font-size: 0.85rem;
+  color: #5a4a2a;
+  margin-top: 0.75rem;
+  font-style: italic;
+  border-top: 1px solid #c9a84c;
+  padding-top: 0.75rem;
+}
+
+/* ── Finding Form ──────────────────────────────────────────── */
+
+.finding-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
 }
+
+.finding-input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  font-family: 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  border: 1px solid #1a2744;
+  border-bottom: 2px solid #1a2744;
+  background-color: #faf6eb;
+  color: #1a1208;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.finding-input:focus {
+  border-color: #8b6914;
+  background-color: #fff9ed;
+}
+
+.finding-input::placeholder {
+  color: #9a8a6a;
+  font-style: italic;
+}
+
+/* ── Buttons ───────────────────────────────────────────────── */
 
 .btn-primary {
   background-color: #1a2744;
-  color: #f4f0e8;
+  color: #f2ead8;
   border: none;
+  border-bottom: 3px solid #0d1628;
   padding: 1rem 2rem;
-  font-family: Georgia, serif;
-  font-size: 1rem;
-  letter-spacing: 0.05em;
+  font-family: 'IM Fell English SC', Georgia, serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
   cursor: pointer;
   width: 100%;
   transition: background-color 0.2s;
@@ -151,179 +230,191 @@ button:focus-visible {
 
 .btn-primary:hover {
   background-color: #8b6914;
+  border-bottom-color: #5a4209;
+}
 
-  /* Record header */
-  .record-designation {
-    font-size: 0.75rem;
-    color: #f4f0e8;
-    opacity: 0.7;
-    margin-left: auto;
-    letter-spacing: 0.1em;
-  }
+.btn-secondary {
+  background-color: transparent;
+  color: #1a2744;
+  border: 1px solid #1a2744;
+  border-bottom: 2px solid #1a2744;
+  padding: 0.85rem 2rem;
+  font-family: 'IM Fell English SC', Georgia, serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+}
 
-  /* Record title block */
-  .record-title-block {
-    padding: 0.5rem 0;
-  }
+.btn-secondary:hover {
+  background-color: #1a2744;
+  color: #f2ead8;
+}
 
-  .record-title {
-    font-family: Georgia, serif;
-    font-size: 1.5rem;
-    color: #1a2744;
-    line-height: 1.3;
-  }
+/* ── Curator Response ──────────────────────────────────────── */
 
-  .completion-label {
-    font-size: 0.8rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #8b6914;
-    margin-top: 0.5rem;
-  }
+.curator-response {
+  margin-top: 0.5rem;
+  animation: fadeIn 0.6s ease-in;
+}
 
-  /* Curator label */
-  .curator-label {
-    font-size: 0.75rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #8b6914;
-    margin-bottom: 0.5rem;
-  }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
-  /* Investigation prompt */
-  .investigation-prompt {
-    padding: 1rem 0;
-  }
+/* ── Reviewing Panel ───────────────────────────────────────── */
 
-  .prompt-text {
-    font-family: Georgia, serif;
-    font-size: 1.15rem;
-    color: #1a2744;
-    line-height: 1.6;
-    font-weight: bold;
-  }
+.reviewing-panel {
+  background-color: #ede4cc;
+  border: 1px solid #8b6914;
+  border-left: 4px solid #1a2744;
+  padding: 1.25rem 1.5rem;
+  font-family: 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  color: #1a1208;
+}
 
-  .prompt-instructions {
-    font-size: 0.9rem;
-    color: #666;
-    margin-top: 0.5rem;
-    font-style: italic;
-  }
+/* ── Breathing Effect ──────────────────────────────────────── */
 
-  /* Finding form */
-  .finding-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
+@keyframes breathe {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.4; }
+  100% { opacity: 1; }
+}
 
-  .finding-input {
-    width: 100%;
-    padding: 0.85rem 1rem;
-    font-size: 1rem;
-    font-family: Georgia, serif;
-    border: 1px solid #1a2744;
-    background-color: #faf8f4;
-    color: #2c2c2c;
-    outline: none;
-  }
+.breathing {
+  animation: breathe 3s ease-in-out infinite;
+}
 
-  .finding-input:focus {
-    border-color: #8b6914;
-    box-shadow: 0 0 0 2px rgba(139, 105, 20, 0.15);
-  }
+/* ── Historical Narrative ──────────────────────────────────── */
 
-  /* Secondary button */
-  .btn-secondary {
-    background-color: transparent;
-    color: #1a2744;
-    border: 1px solid #1a2744;
-    padding: 0.85rem 2rem;
-    font-family: Georgia, serif;
-    font-size: 0.95rem;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    width: 100%;
-    transition: all 0.2s;
-  }
+.historical-narrative {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: #1a1208;
+  border-top: 1px solid #c9a84c;
+  padding-top: 1.25rem;
+}
 
-  .btn-secondary:hover {
-    background-color: #1a2744;
-    color: #f4f0e8;
-  }
+/* ── Lexicon Additions ─────────────────────────────────────── */
 
-  /* Curator response */
-  .curator-response {
-    margin-top: 1rem;
-    border-left-color: #1a2744;
-  }
+.lexicon-additions {
+  background-color: #ede4cc;
+  border: 1px solid #8b6914;
+  padding: 1.25rem;
+}
 
-  /* Historical narrative */
-  .historical-narrative {
-    padding: 1rem 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    font-size: 0.95rem;
-    line-height: 1.7;
-    color: #2c2c2c;
-  }
+.lexicon-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8b6914;
+  margin-bottom: 0.75rem;
+  font-family: 'IM Fell English SC', Georgia, serif;
+}
 
-  /* Lexicon additions */
-  .lexicon-additions {
-    background-color: #faf8f4;
-    border: 1px solid #8b6914;
-    padding: 1.25rem;
-  }
+.lexicon-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 
-  .lexicon-label {
-    font-size: 0.75rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #8b6914;
-    margin-bottom: 0.75rem;
-  }
+.lexicon-entry {
+  background-color: #1a2744;
+  color: #f2ead8;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  font-family: 'IM Fell English SC', Georgia, serif;
+}
 
-  .lexicon-list {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
+/* ── Recovery Code ─────────────────────────────────────────── */
 
-  .lexicon-entry {
-    background-color: #1a2744;
-    color: #f4f0e8;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.85rem;
-    letter-spacing: 0.05em;
-    font-family: Georgia, serif;
-  }
+.recovery-code-display {
+  background-color: #1a2744;
+  border: 1px solid #8b6914;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
 
-  /* Recovery code */
-  .recovery-code-display {
-    background-color: #1a2744;
-    padding: 1.5rem;
-    text-align: center;
-  }
+.recovery-code {
+  font-family: 'IM Fell English SC', Georgia, serif;
+  font-size: 1.4rem;
+  color: #c9a84c;
+  letter-spacing: 0.2em;
+}
 
-  .recovery-code {
-    font-family: Georgia, serif;
-    font-size: 1.3rem;
-    color: #f4f0e8;
-    letter-spacing: 0.15em;
-  }
+.recovery-warning {
+  font-size: 0.8rem;
+  color: #f2ead8;
+  margin-top: 0.75rem;
+  font-style: italic;
+  opacity: 0.8;
+}
 
-  /* Investigator alias */
-  .investigator-alias {
-    font-size: 0.85rem;
-    color: #8b6914;
-    margin-top: 0.25rem;
-    letter-spacing: 0.05em;
-  }
+/* ── Investigator Alias ────────────────────────────────────── */
 
-  /* Hint section */
-  .hint-section {
-    padding-top: 0.5rem;
-  }
+.investigator-alias {
+  font-size: 0.8rem;
+  color: #8b6914;
+  margin-top: 0.25rem;
+  letter-spacing: 0.1em;
+  font-family: 'IM Fell English SC', Georgia, serif;
+}
+
+/* ── Hint Section ──────────────────────────────────────────── */
+
+.hint-section {
+  padding-top: 0.25rem;
+}
+
+/* ── First Encounter ───────────────────────────────────────── */
+
+.society-seal {
+  text-align: center;
+  padding: 1rem 0 0.5rem;
+  color: #8b6914;
+  font-size: 2rem;
+  letter-spacing: 0.3em;
+}
+
+.opening-statement {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 1rem;
+  line-height: 1.9;
+  color: #1a1208;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.opening-statement p {
+  font-style: italic;
+}
+
+.screen-rule {
+  border: none;
+  border-top: 1px solid #8b6914;
+  margin: 0.5rem 0;
+}
+
+/* ── Archive ───────────────────────────────────────────────── */
+
+.archive-header {
+  text-align: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #8b6914;
+}
+
+.archive-title {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 1.5rem;
+  color: #1a2744;
+  font-weight: normal;
 }
