@@ -111,6 +111,10 @@ function typewriteElement(element, text, mode, onComplete) {
     displayed += char;
     element.textContent = displayed;
     i++;
+
+    // Scroll to keep typing visible
+    element.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
     setTimeout(next, charDelay(char, peek, mode));
   }
 
