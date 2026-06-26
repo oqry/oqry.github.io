@@ -56,6 +56,16 @@ function loadInvestigator() {
   return false;
 }
 
+// ── Scroll to bottom ──────────────────────────────────────────
+function scrollToBottom() {
+  setTimeout(() => {
+    window.scrollTo({
+      top: document.body.scrollHeight,
+      behavior: 'smooth'
+    });
+  }, 100);
+}
+
 // ── Masthead ──────────────────────────────────────────────────
 function masthead(designation) {
   return `
@@ -206,6 +216,7 @@ function typewriteSequence(items, onComplete) {
 
 // ── Screen Router ─────────────────────────────────────────────
 function showScreen(screenName, data = {}) {
+  window.scrollTo(0, 0);
   app.innerHTML = screens[screenName](data);
   initScreen(screenName);
 }
@@ -243,10 +254,9 @@ function initScreen(screenName) {
     });
   }
 
-  // After typing completes — reveal everything below
+  // After typing completes — reveal everything below then scroll to it
   typewriteSequence(sequence, () => {
     setTimeout(() => {
-      let firstRevealed = null;
       app.querySelectorAll(
         '.btn-primary, .btn-secondary, .finding-form, ' +
         '.investigation-prompt, .hint-section, ' +
@@ -256,14 +266,9 @@ function initScreen(screenName) {
       ).forEach(el => {
         el.style.opacity = '1';
         el.style.pointerEvents = 'auto';
-        if (!firstRevealed) firstRevealed = el;
       });
-      // Scroll first revealed element into view
-      if (firstRevealed) {
-        setTimeout(() => {
-          firstRevealed.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 200);
-      }
+      // Scroll to bottom to reveal newly shown elements
+      scrollToBottom();
     }, 400);
   });
 }
@@ -640,26 +645,22 @@ function submitFinding(recordId) {
 
           [investigationPrompt, findingForm, hintSection].forEach(el => {
             if (el) {
-              // Move each element to the end of screen-content
               screenContent.appendChild(el);
               el.style.display = el === findingForm ? 'flex' : 'block';
               el.style.opacity = '0';
               el.style.transition = 'opacity 0.6s ease';
-              setTimeout(() => {
-                el.style.opacity = '1';
-                if (el === investigationPrompt) {
-                  setTimeout(() => {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                  }, 200);
-                }
-              }, 50);
+              setTimeout(() => { el.style.opacity = '1'; }, 50);
             }
           });
+
           if (input) {
             input.disabled = false;
             input.value = '';
           }
           if (submitBtn) submitBtn.disabled = false;
+
+          // Scroll to bottom to reveal restored elements
+          scrollToBottom();
         }
       );
     }
