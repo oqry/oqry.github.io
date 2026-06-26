@@ -308,11 +308,10 @@ const screens = {
         <div class="society-seal">✦ ✦ ✦</div>
 
         <div class="opening-statement">
-          <p data-text="You have discovered a place that the Society has long endeavoured to document."></p>
-          <p data-text="Much of what was originally recorded here was lost — to circumstance, to conflict, and to the particular carelessness with which time treats its own evidence. What remains is incomplete. What has been added since is not always reliable."></p>
-          <p data-text="The Society is endeavouring to set the record straight."></p>
-          <p data-text="If you are willing to observe carefully and report honestly what the evidence before you supports, your findings will be entered into the Archive alongside those of others who have paused, as you have, to look more closely at the world."></p>
-          <p data-text="The Society does not ask for your name. It asks for your observations, your diligence, and your devotion to accuracy."></p>
+          <p data-text="You have found what most pass without a second thought."></p>
+          <p data-text="This place holds a history that has been contested, obscured, and — the Society has reason to believe — deliberately concealed. Since 1847, we have laboured to recover what remains. Much has been lost. What survives is not always to be trusted."></p>
+          <p data-text="For this reason, our records are maintained in cipher. Those who discover our markers are invited to assist in their decipherment — to examine the evidence before them with patience and care, and to record only what they can honestly verify."></p>
+          <p data-text="We do not ask for your name. We ask only that you look carefully."></p>
         </div>
 
         <hr class="screen-rule" />
@@ -374,7 +373,7 @@ const screens = {
 
           <div id="curator-response-area"></div>
 
-          <div class="hint-section" id="hint-section">
+          <div class="hint-section" id="hint-section" style="display:none">
             <button
               class="btn-secondary"
               id="hint-btn"
@@ -574,7 +573,8 @@ function submitFinding(recordId) {
   const investigationPrompt = document.querySelector('.investigation-prompt');
   const findingForm = document.querySelector('.finding-form');
   const hintSection = document.querySelector('.hint-section');
-
+// Reveal hint button after first wrong finding
+          if (hintSection) hintSection.style.display = 'block';
   [investigationPrompt, findingForm, hintSection].forEach(el => {
     if (el) {
       el.style.transition = 'opacity 0.4s ease';
