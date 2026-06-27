@@ -711,6 +711,7 @@ function submitFinding(recordId) {
     const accepted = evaluateFinding(finding, stage);
 
     if (accepted) {
+      console.log('Finding accepted. cloudId:', investigator.cloudId, 'stage:', investigator.currentStage);
       investigator.submissionCount = 0;
 
       if (stage.lexiconEntries) {
@@ -721,6 +722,15 @@ function submitFinding(recordId) {
         });
       }
       saveInvestigator();
+
+      if (investigator.cloudId) {
+        if (stage.lexiconEntries) {
+          stage.lexiconEntries.forEach(word => {
+            console.log('Saving lexicon entry to cloud:', word, investigator.cloudId);
+            saveLexiconEntry(investigator.cloudId, word, recordId);
+          });
+        }
+      }
 
       const nextStageIndex = investigator.currentStage + 1;
       const hasNextStage = nextStageIndex < stages.length;
@@ -741,12 +751,17 @@ function submitFinding(recordId) {
         }
         saveInvestigator();
 
+        if (investigator.cloudId) {
+          console.log('Saving completed record to cloud:', recordId, investigator.cloudId);
+          saveCompletedRecord(investigator.cloudId, recordId);
+        }
+
         showCuratorResponse(
           responseArea,
           stage.acceptanceResponse,
           () => {
             if (!investigator.alias) {
-              showScreen('register', { recordId });
+              showRegistrationInline(recordId);
             } else {
               showScreen('completion', { recordId });
             }
@@ -849,6 +864,66 @@ function petitionForHint(recordId) {
 }
 
 // ── Registration ──────────────────────────────────────────────
+function showRegistrationInline(recordId) {
+  const screenContent = document.querySelector('.screen-content');
+  if (!screenContent) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = `
+    <div class="curator-panel" id="curator-register">
+      <p class="curator-label">The Curator</p>
+      <p class="curator-voice" data-text="Your findings have been provisionally noted in the Society's records."></p>
+      <p class="curator-voice" data-text="Before they may be formally entered into your Ledger, the Society asks that you establish an identity by which your contributions will be known. No personal information is required or desired."></p>
+      <p class="curator-voice" data-text="Choose any name you wish — a family name, an invented one, or something else entirely. It need only be yours, and you need only remember it."></p>
+      <p class="curator-voice" data-text="By what name shall the Society know you?"></p>
+    </div>
+    <div class="finding-form registration-form" style="opacity:0;transition:opacity 0.7s ease;pointer-events:none;">
+      <input
+        type="text"
+        id="alias-input"
+        class="finding-input"
+        placeholder="Your chosen name"
+        autocomplete="off"
+        maxlength="30"
+      />
+      <button class="btn-primary" onclick="completeRegistration('${recordId}')">
+        This is my name
+      </button>
+    </div>
+  `;
+
+  wrapper.querySelectorAll('[data-text]').forEach(el => {
+    el.textContent = '';
+    el.style.visibility = 'hidden';
+  });
+
+  wrapper.style.opacity = '0';
+  wrapper.style.transition = 'opacity 0.5s ease';
+  screenContent.appendChild(wrapper);
+
+  setTimeout(() => {
+    wrapper.style.opacity = '1';
+    scrollToBottom();
+  }, 50);
+
+  const sequence = [];
+  wrapper.querySelectorAll('.curator-panel [data-text]').forEach(el => {
+    sequence.push({ element: el, mode: 'curator' });
+  });
+
+  const findingForm = wrapper.querySelector('.finding-form');
+
+  typewriteSequence(sequence, () => {
+    setTimeout(() => {
+      if (findingForm) {
+        findingForm.style.opacity = '1';
+        findingForm.style.pointerEvents = 'auto';
+      }
+      scrollToBottom();
+    }, 400);
+  });
+}
+
 async function completeRegistration(recordId) {
   const input = document.getElementById('alias-input');
   const alias = input ? input.value.trim() : '';
@@ -858,6 +933,32 @@ async function completeRegistration(recordId) {
     area.style.marginTop = '1rem';
     input.parentNode.appendChild(area);
     showCuratorResponse(area, ['The Society requires a name before it may proceed.']);
+    return;
+  }
+
+  const available = await checkAliasAvailable(alias);
+  if (!available) {
+    const findingForm = document.querySelector('.registration-form') || document.querySelector('.finding-form');
+    if (findingForm) {
+      findingForm.style.transition = 'opacity 0.4s ease';
+      findingForm.style.opacity = '0';
+      setTimeout(() => { findingForm.style.display = 'none'; }, 400);
+    }
+    const responseArea = document.createElement('div');
+    responseArea.style.marginTop = '1rem';
+    document.querySelector('.screen-content').appendChild(responseArea);
+    showCuratorResponse(responseArea, ['The name you have chosen is already recorded in the Society\'s Ledger. Each Investigator must be known by a distinct name. The Society asks that you choose another.'], () => {
+      const screenContent = document.querySelector('.screen-content');
+      if (findingForm) {
+        screenContent.appendChild(findingForm);
+        findingForm.style.display = 'flex';
+        findingForm.style.opacity = '0';
+        findingForm.style.transition = 'opacity 0.6s ease';
+        setTimeout(() => { findingForm.style.opacity = '1'; }, 50);
+      }
+      if (input) input.value = '';
+      scrollToBottom();
+    });
     return;
   }
 
@@ -873,6 +974,14 @@ async function completeRegistration(recordId) {
   if (cloudRecord) {
     investigator.cloudId = cloudRecord.id;
     saveInvestigator();
+
+    investigator.lexicon.forEach(word => {
+      saveLexiconEntry(investigator.cloudId, word, investigator.currentRecordId);
+    });
+
+    investigator.completedRecords.forEach(recordId => {
+      saveCompletedRecord(investigator.cloudId, recordId);
+    });
   }
 
   showScreen('recoveryCode', { recordId });
