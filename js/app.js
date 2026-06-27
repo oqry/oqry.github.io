@@ -8,6 +8,7 @@
 const investigator = {
   alias: null,
   recoveryCode: null,
+  cloudId: null,
   completedRecords: [],
   lexicon: [],
   currentRecordId: null,
@@ -321,8 +322,8 @@ function showStagePrompt(recordId, stageIndex) {
   saveInvestigator();
 
   const record = getRecord(recordId);
-  const mode = investigator.alias ? 'registered' : 'unregistered';
-  const stages = record.investigation[mode].stages;
+  const tier = getInvestigationTier(record);
+  const stages = tier.stages;
   const stage = stages[stageIndex];
 
   if (!stage) return;
@@ -430,8 +431,8 @@ const screens = {
     const record = getRecord(data.recordId);
     if (!record) return screens.notFound();
 
-    const mode = investigator.alias ? 'registered' : 'unregistered';
-    const stages = record.investigation[mode].stages;
+    const tier = getInvestigationTier(record);
+    const stages = tier.stages;
     const stage = stages[0];
 
     return `
@@ -668,8 +669,8 @@ function submitFinding(recordId) {
 
   investigator.submissionCount++;
 
-  const mode = investigator.alias ? 'registered' : 'unregistered';
-  const stages = record.investigation[mode].stages;
+  const tier = getInvestigationTier(record);
+  const stages = tier.stages;
   const stage = stages[investigator.currentStage];
 
   const investigationPrompt = document.querySelector('.stage-prompt-block .investigation-prompt')
@@ -809,11 +810,11 @@ function petitionForHint(recordId) {
   const responseArea = document.getElementById('curator-response-area');
   const hintBtn = document.getElementById('hint-btn');
 
-  const mode = investigator.alias ? 'registered' : 'unregistered';
-  const stages = record.investigation[mode].stages;
+  const tier = getInvestigationTier(record);
+  const stages = tier.stages;
   const stage = stages[investigator.currentStage];
 
-  if (!stage || !stage.hint) return;
+  if (!stage || !stage.hint1) return;
 
   if (!investigator.hintPetitions[recordId]) {
     investigator.hintPetitions[recordId] = 0;
@@ -836,7 +837,7 @@ function petitionForHint(recordId) {
       responseArea,
       [
         'The Curator offers the following observation, in the hope that it may direct your attention more precisely.',
-        stage.hint,
+        petitionCount === 1 ? stage.hint1 : (stage.hint2 || stage.hint1),
         'The Society trusts that you will arrive at your finding through your own careful observation.'
       ],
       () => {
@@ -848,7 +849,7 @@ function petitionForHint(recordId) {
 }
 
 // ── Registration ──────────────────────────────────────────────
-function completeRegistration(recordId) {
+async function completeRegistration(recordId) {
   const input = document.getElementById('alias-input');
   const alias = input ? input.value.trim() : '';
 
@@ -864,12 +865,32 @@ function completeRegistration(recordId) {
   investigator.recoveryCode = generateRecoveryCode();
   saveInvestigator();
 
+  const cloudRecord = await saveInvestigatorToCloud({
+    alias: investigator.alias,
+    recovery_phrase: investigator.recoveryCode,
+    investigator_number: Date.now()
+  });
+  if (cloudRecord) {
+    investigator.cloudId = cloudRecord.id;
+    saveInvestigator();
+  }
+
   showScreen('recoveryCode', { recordId });
 }
 
 // ── Records ───────────────────────────────────────────────────
 function getRecord(recordId) {
   return records[recordId] || null;
+}
+
+function getInvestigationTier(record) {
+  const tiers = record.investigation.tiers;
+  const completed = investigator.completedRecords.length;
+  const sorted = [...tiers].sort((a, b) => b.minRecords - a.minRecords);
+  for (const tier of sorted) {
+    if (completed >= tier.minRecords) return tier;
+  }
+  return tiers[0];
 }
 
 const records = {
@@ -884,54 +905,58 @@ const records = {
     ],
 
     investigation: {
-
-      unregistered: {
-        stages: [
-          {
-            prompt: 'What core value is designated by the tenth position?',
-            instructions: 'Record the value precisely as it appears upon the memorial.',
-            hint: 'Accuracy is paramount in the Society\'s records. Transcribe what you observe exactly as it is inscribed — every letter as it appears.',
-            acceptableFindings: ['RESPECT'],
-            multiAnswer: false,
-            lexiconEntries: ['RESPECT'],
-            acceptanceResponse: [
-              'Your finding is consistent with previous observations.',
-              'Respect. It is among the most enduring of virtues, and among the most difficult to sustain under trial. It has been entered into your Lexicon.',
-              'The Society asks that you look further. Four additional virtues are memorialized here alongside Respect. Name them.'
-            ]
-          },
-          {
-            prompt: 'Four additional core values are memorialized upon this circle alongside Respect. Name them.',
-            instructions: 'Enter the four values separated by commas or spaces, in any order. Record them precisely as they appear.',
-            hint: 'Examine each star in the circle carefully. Four bear inscriptions you have not yet recorded. Transcribe each exactly as it appears.',
-            acceptableFindings: ['LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
-            multiAnswer: true,
-            lexiconEntries: ['LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
-            acceptanceResponse: [
-              'These findings concur with previous investigations.',
-              'Loyalty, Duty, Courage, and Honor have been entered into your Lexicon.',
-              'Your diligence here is appreciated. The Society invites you to preserve these findings in your Ledger.'
-            ]
-          }
-        ]
-      },
-
-      registered: {
-        stages: [
-          {
-            prompt: 'Number the north as one. Name the core value designated by the tenth.',
-            instructions: 'Record the value precisely as it appears upon the memorial.',
-            hint: 'Accuracy is paramount in the Society\'s records. Transcribe what you observe exactly as it is inscribed — every letter as it appears.',
-            acceptableFindings: ['RESPECT'],
-            multiAnswer: false,
-            lexiconEntries: ['RESPECT'],
-            acceptanceResponse: [
-              'Your finding is consistent with previous observations.',
-              'The Society asks that you continue your examination of this Record.'
-            ]
-          }
-        ]
-      }
+      tiers: [
+        {
+          minRecords: 0,
+          label: 'Apprentice',
+          stages: [
+            {
+              prompt: 'What core value is designated by the tenth position?',
+              instructions: 'Record the value precisely as it appears upon the memorial.',
+              hint1: 'Accuracy is paramount in the Society\'s records. Transcribe what you observe exactly as it is inscribed — every letter as it appears.',
+              acceptableFindings: ['RESPECT'],
+              multiAnswer: false,
+              lexiconEntries: ['RESPECT'],
+              acceptanceResponse: [
+                'Your finding is consistent with previous observations.',
+                'Respect. It is among the most enduring of virtues, and among the most difficult to sustain under trial. It has been entered into your Lexicon.',
+                'The Society asks that you look further. Four additional virtues are memorialized here alongside Respect. Name them.'
+              ]
+            },
+            {
+              prompt: 'Four additional core values are memorialized upon this circle alongside Respect. Name them.',
+              instructions: 'Enter the four values separated by commas or spaces, in any order. Record them precisely as they appear.',
+              hint1: 'Examine each star in the circle carefully. Four bear inscriptions you have not yet recorded. Transcribe each exactly as it appears.',
+              acceptableFindings: ['LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
+              multiAnswer: true,
+              lexiconEntries: ['LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
+              acceptanceResponse: [
+                'These findings concur with previous investigations.',
+                'Loyalty, Duty, Courage, and Honor have been entered into your Lexicon.',
+                'Your diligence here is appreciated. The Society invites you to preserve these findings in your Ledger.'
+              ]
+            }
+          ]
+        },
+        {
+          minRecords: 1,
+          label: 'Novice',
+          stages: [
+            {
+              prompt: 'Number the north as one. Name the core value designated by the tenth.',
+              instructions: 'Record the value precisely as it appears upon the memorial.',
+              hint1: 'Accuracy is paramount in the Society\'s records. Transcribe what you observe exactly as it is inscribed — every letter as it appears.',
+              acceptableFindings: ['RESPECT'],
+              multiAnswer: false,
+              lexiconEntries: ['RESPECT'],
+              acceptanceResponse: [
+                'Your finding is consistent with previous observations.',
+                'The Society asks that you continue your examination of this Record.'
+              ]
+            }
+          ]
+        }
+      ]
     },
 
     completion: {
