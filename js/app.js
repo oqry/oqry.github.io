@@ -332,12 +332,6 @@ function showStagePrompt(recordId, stageIndex) {
   const promptBlock = document.createElement('div');
   promptBlock.className = 'stage-prompt-block';
   promptBlock.innerHTML = `
-    <div class="investigation-prompt">
-      <p class="prompt-text">${stage.prompt}</p>
-      ${stage.instructions
-        ? `<p class="prompt-instructions">${stage.instructions}</p>`
-        : ''}
-    </div>
     <div class="finding-form">
       <input
         type="text"
@@ -373,6 +367,8 @@ function showStagePrompt(recordId, stageIndex) {
   setTimeout(() => {
     promptBlock.style.opacity = '1';
     scrollToBottom();
+    const newInput = document.getElementById('finding-input');
+    if (newInput) newInput.value = '';
   }, 200);
 }
 
@@ -656,7 +652,7 @@ function beginInvestigation(recordId) {
 }
 
 function submitFinding(recordId) {
-  const input = document.getElementById('finding-input');
+  const input = document.querySelector('.stage-prompt-block #finding-input') || document.getElementById('finding-input');
   const submitBtn = document.getElementById('submit-btn');
   const responseArea = document.getElementById('curator-response-area');
   const finding = input ? input.value : '';
@@ -884,7 +880,7 @@ const records = {
 
     curatorIntroduction: [
       'Before you stand fifteen, arranged in a circle — a memorial whose arrangement carries meaning beyond the names it bears.',
-      'Observe carefully. Each position has been chosen with purpose. Number the stars from the north, beginning at one. Name the core value designated by the tenth.'
+      'Observe carefully. Each position has been chosen with purpose. Number the north as one. Name the core value designated by the tenth.'
     ],
 
     investigation: {
@@ -923,7 +919,7 @@ const records = {
       registered: {
         stages: [
           {
-            prompt: 'Number the stars from the north, beginning at one. Name the core value designated by the tenth.',
+            prompt: 'Number the north as one. Name the core value designated by the tenth.',
             instructions: 'Record the value precisely as it appears upon the memorial.',
             hint: 'Accuracy is paramount in the Society\'s records. Transcribe what you observe exactly as it is inscribed — every letter as it appears.',
             acceptableFindings: ['RESPECT'],
