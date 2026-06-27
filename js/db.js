@@ -40,9 +40,9 @@ async function checkAliasAvailable(alias) {
       .from('investigators')
       .select('id')
       .eq('alias', alias)
-      .maybeSingle();
+      .limit(1);
     if (error) { console.error('checkAliasAvailable:', error); return true; }
-    return data === null;
+    return !data || data.length === 0;
   } catch (err) {
     console.error('checkAliasAvailable exception:', err);
     return true;

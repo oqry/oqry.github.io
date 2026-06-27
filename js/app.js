@@ -899,10 +899,12 @@ function showRegistrationInline(recordId) {
 
   wrapper.style.opacity = '0';
   wrapper.style.transition = 'opacity 0.5s ease';
+  const currentScrollY = window.scrollY;
   screenContent.appendChild(wrapper);
 
   setTimeout(() => {
     wrapper.style.opacity = '1';
+    window.scrollTo(0, currentScrollY);
     scrollToBottom();
   }, 50);
 
