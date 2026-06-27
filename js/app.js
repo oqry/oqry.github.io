@@ -948,6 +948,23 @@ const records = {
   }
 };
 
+// ── Dev Utilities ─────────────────────────────────────────────
+function devReset() {
+  localStorage.clear();
+  Object.assign(investigator, {
+    alias: null,
+    recoveryCode: null,
+    completedRecords: [],
+    lexicon: [],
+    currentRecordId: null,
+    currentStage: 0,
+    hintPetitions: {},
+    submissionCount: 0
+  });
+  showScreen('firstEncounter', { recordId: 'r001' });
+}
+window.devReset = devReset;
+
 // ── Initialise ────────────────────────────────────────────────
 loadInvestigator();
 
