@@ -11,7 +11,9 @@ const investigator = {
   completedRecords: [],
   lexicon: [],
   currentRecordId: null,
-  hintPetitions: {}
+  currentStage: 0,
+  hintPetitions: {},
+  submissionCount: 0
 };
 
 // ── App Root ──────────────────────────────────────────────────
@@ -78,9 +80,14 @@ function masthead(designation) {
 }
 
 // ── Typewriter Engine ─────────────────────────────────────────
+let currentTypewriterSkipped = false;
+
 function typewriteElement(element, text, mode, onComplete) {
   element.textContent = '';
   element.style.visibility = 'visible';
+
+  function skipOnClick() { currentTypewriterSkipped = true; }
+  element.addEventListener('click', skipOnClick);
 
   const isCurator = mode === 'curator';
   const backspaceMoments = isCurator ? selectBackspaceMoments(text) : [];
@@ -90,7 +97,15 @@ function typewriteElement(element, text, mode, onComplete) {
   let correcting = false;
 
   function next() {
+    if (currentTypewriterSkipped) {
+      element.textContent = text;
+      element.removeEventListener('click', skipOnClick);
+      if (onComplete) setTimeout(onComplete, 200);
+      return;
+    }
+
     if (i >= text.length) {
+      element.removeEventListener('click', skipOnClick);
       if (onComplete) setTimeout(onComplete, 200);
       return;
     }
@@ -122,7 +137,6 @@ function typewriteElement(element, text, mode, onComplete) {
     element.textContent = displayed;
     i++;
 
-    // Scroll to keep typing visible
     element.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
     setTimeout(next, charDelay(char, peek, mode));
@@ -216,19 +230,18 @@ function typewriteSequence(items, onComplete) {
 
 // ── Screen Router ─────────────────────────────────────────────
 function showScreen(screenName, data = {}) {
+  currentTypewriterSkipped = false;
   window.scrollTo(0, 0);
   app.innerHTML = screens[screenName](data);
   initScreen(screenName);
 }
 
 function initScreen(screenName) {
-  // Hide all typed elements
   app.querySelectorAll('[data-text]').forEach(el => {
     el.textContent = '';
     el.style.visibility = 'hidden';
   });
 
-  // Hide everything below typing area
   app.querySelectorAll(
     '.btn-primary, .btn-secondary, .finding-form, ' +
     '.investigation-prompt, .hint-section, ' +
@@ -241,7 +254,6 @@ function initScreen(screenName) {
     el.style.pointerEvents = 'none';
   });
 
-  // Build typing sequence
   const sequence = [];
 
   if (screenName === 'firstEncounter') {
@@ -254,8 +266,14 @@ function initScreen(screenName) {
     });
   }
 
-  // After typing completes — reveal everything below then scroll to it
+  function skipTypingOnClick() {
+    currentTypewriterSkipped = true;
+    setTimeout(() => { currentTypewriterSkipped = false; }, 300);
+  }
+  app.addEventListener('click', skipTypingOnClick);
+
   typewriteSequence(sequence, () => {
+    app.removeEventListener('click', skipTypingOnClick);
     setTimeout(() => {
       app.querySelectorAll(
         '.btn-primary, .btn-secondary, .finding-form, ' +
@@ -267,7 +285,6 @@ function initScreen(screenName) {
         el.style.opacity = '1';
         el.style.pointerEvents = 'auto';
       });
-      // Scroll to bottom to reveal newly shown elements
       scrollToBottom();
     }, 400);
   });
@@ -275,6 +292,7 @@ function initScreen(screenName) {
 
 // ── Curator Response ──────────────────────────────────────────
 function showCuratorResponse(container, paragraphs, onComplete) {
+  currentTypewriterSkipped = false;
   container.innerHTML = `
     <div class="curator-panel curator-response">
       <p class="curator-label">The Curator</p>
@@ -295,6 +313,92 @@ function showCuratorResponse(container, paragraphs, onComplete) {
   typewriteSequence(sequence, () => {
     if (onComplete) setTimeout(onComplete, 400);
   });
+}
+
+// ── Stage Prompt ──────────────────────────────────────────────
+function showStagePrompt(recordId, stageIndex) {
+  investigator.currentStage = stageIndex;
+  saveInvestigator();
+
+  const record = getRecord(recordId);
+  const mode = investigator.alias ? 'registered' : 'unregistered';
+  const stages = record.investigation[mode].stages;
+  const stage = stages[stageIndex];
+
+  if (!stage) return;
+
+  const screenContent = document.querySelector('.screen-content');
+
+  const promptBlock = document.createElement('div');
+  promptBlock.className = 'stage-prompt-block';
+  promptBlock.innerHTML = `
+    <div class="investigation-prompt">
+      <p class="prompt-text">${stage.prompt}</p>
+      ${stage.instructions
+        ? `<p class="prompt-instructions">${stage.instructions}</p>`
+        : ''}
+    </div>
+    <div class="finding-form">
+      <input
+        type="text"
+        id="finding-input"
+        class="finding-input"
+        placeholder="Enter your finding"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+      />
+      <button
+        class="btn-primary"
+        id="submit-btn"
+        onclick="submitFinding('${recordId}')">
+        Submit Finding
+      </button>
+    </div>
+    <div id="curator-response-area"></div>
+    <div class="hint-section" id="hint-section" style="display:none">
+      <button
+        class="btn-secondary"
+        id="hint-btn"
+        onclick="petitionForHint('${recordId}')">
+        Petition the Curator for Guidance
+      </button>
+    </div>
+  `;
+
+  promptBlock.style.opacity = '0';
+  promptBlock.style.transition = 'opacity 0.7s ease';
+  screenContent.appendChild(promptBlock);
+
+  setTimeout(() => {
+    promptBlock.style.opacity = '1';
+    scrollToBottom();
+  }, 200);
+}
+
+// ── Evaluate Finding ──────────────────────────────────────────
+function evaluateFinding(finding, stage) {
+  if (stage.multiAnswer) {
+    const submitted = finding
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .map(w => w.trim())
+      .filter(w => w.length > 0);
+
+    return stage.acceptableFindings.every(required =>
+      submitted.includes(required.toLowerCase())
+    );
+  } else {
+    return stage.acceptableFindings.some(f => f === finding.trim());
+  }
+}
+
+function isWrongCase(finding, stage) {
+  if (stage.multiAnswer) return false;
+  return stage.acceptableFindings.some(f =>
+    f.toLowerCase() === finding.trim().toLowerCase() &&
+    f !== finding.trim()
+  );
 }
 
 // ── Screens ───────────────────────────────────────────────────
@@ -330,6 +434,10 @@ const screens = {
     const record = getRecord(data.recordId);
     if (!record) return screens.notFound();
 
+    const mode = investigator.alias ? 'registered' : 'unregistered';
+    const stages = record.investigation[mode].stages;
+    const stage = stages[0];
+
     return `
       <div class="screen" id="screen-investigation">
         ${masthead(record.designation)}
@@ -344,13 +452,6 @@ const screens = {
             ${record.curatorIntroduction.map(p =>
               `<p class="curator-voice" data-text="${p}"></p>`
             ).join('')}
-          </div>
-
-          <div class="investigation-prompt">
-            <p class="prompt-text">${record.puzzle.prompt}</p>
-            ${record.puzzle.instructions
-              ? `<p class="prompt-instructions">${record.puzzle.instructions}</p>`
-              : ''}
           </div>
 
           <div class="finding-form">
@@ -394,8 +495,8 @@ const screens = {
 
         <div class="curator-panel" id="curator-register">
           <p class="curator-label">The Curator</p>
-          <p class="curator-voice" data-text="Your finding has been provisionally noted in the Society's records."></p>
-          <p class="curator-voice" data-text="Before it may be formally entered into your Ledger, the Society asks that you establish an identity by which your contributions will be known. No personal information is required or desired."></p>
+          <p class="curator-voice" data-text="Your findings have been provisionally noted in the Society's records."></p>
+          <p class="curator-voice" data-text="Before they may be formally entered into your Ledger, the Society asks that you establish an identity by which your contributions will be known. No personal information is required or desired."></p>
           <p class="curator-voice" data-text="Choose any name you wish — a family name, an invented one, or something else entirely. It need only be yours, and you need only remember it."></p>
           <p class="curator-voice" data-text="By what name shall the Society know you?"></p>
         </div>
@@ -466,16 +567,15 @@ const screens = {
             ).join('')}
           </div>
 
-          ${record.completion.narrative ? `
           <div class="historical-narrative">
             ${record.completion.narrative.map(p => `<p>${p}</p>`).join('')}
-          </div>` : ''}
+          </div>
 
-          ${record.lexiconEntries && record.lexiconEntries.length > 0 ? `
+          ${investigator.lexicon.length > 0 ? `
           <div class="lexicon-additions">
-            <p class="lexicon-label">Added to your Lexicon</p>
+            <p class="lexicon-label">Your Lexicon</p>
             <ul class="lexicon-list">
-              ${record.lexiconEntries.map(entry =>
+              ${investigator.lexicon.map(entry =>
                 `<li class="lexicon-entry">${entry}</li>`
               ).join('')}
             </ul>
@@ -551,6 +651,7 @@ const screens = {
 // ── Investigation Logic ───────────────────────────────────────
 function beginInvestigation(recordId) {
   investigator.currentRecordId = recordId;
+  investigator.currentStage = 0;
   showScreen('investigation', { recordId });
 }
 
@@ -569,21 +670,26 @@ function submitFinding(recordId) {
     return;
   }
 
-  // Hide the prompt, form, and hint during review
-  const investigationPrompt = document.querySelector('.investigation-prompt');
-  const findingForm = document.querySelector('.finding-form');
-  const hintSection = document.querySelector('.hint-section');
-// Reveal hint button after first wrong finding
-          if (hintSection) hintSection.style.display = 'block';
+  investigator.submissionCount++;
+
+  const mode = investigator.alias ? 'registered' : 'unregistered';
+  const stages = record.investigation[mode].stages;
+  const stage = stages[investigator.currentStage];
+
+  const investigationPrompt = document.querySelector('.stage-prompt-block .investigation-prompt')
+    || document.querySelector('.investigation-prompt');
+  const findingForm = document.querySelector('.stage-prompt-block .finding-form')
+    || document.querySelector('.finding-form');
+  const hintSection = document.getElementById('hint-section');
+
   [investigationPrompt, findingForm, hintSection].forEach(el => {
     if (el) {
       el.style.transition = 'opacity 0.4s ease';
       el.style.opacity = '0';
-      setTimeout(() => { el.style.display = 'none'; }, 400);
+      setTimeout(() => { if (el) el.style.display = 'none'; }, 400);
     }
   });
 
-  // Show reviewing message — typed, then breathing
   responseArea.innerHTML = `
     <div class="reviewing-panel" id="reviewing-panel">
       <p class="curator-voice" data-text="The Curator is reviewing your finding. Patience is a virtue."></p>
@@ -594,7 +700,6 @@ function submitFinding(recordId) {
   const reviewVoice = reviewPanel.querySelector('[data-text]');
   reviewVoice.style.visibility = 'hidden';
 
-  // Type the message, then begin breathing
   typewriteElement(reviewVoice, reviewVoice.getAttribute('data-text'), 'curator', () => {
     setTimeout(() => {
       const p = document.getElementById('reviewing-panel');
@@ -602,47 +707,77 @@ function submitFinding(recordId) {
     }, 300);
   });
 
-  // 15 second pause then evaluate
-  setTimeout(() => {
+  function evaluateAndRespond() {
     const p = document.getElementById('reviewing-panel');
     if (p) p.classList.remove('breathing');
 
-    const normalized = normalizeFinding(finding);
-    const accepted = record.puzzle.acceptableFindings.some(f =>
-      normalizeFinding(f) === normalized
-    );
+    const accepted = evaluateFinding(finding, stage);
 
     if (accepted) {
-      if (record.lexiconEntries) {
-        record.lexiconEntries.forEach(entry => {
+      investigator.submissionCount = 0;
+
+      if (stage.lexiconEntries) {
+        stage.lexiconEntries.forEach(entry => {
           if (!investigator.lexicon.includes(entry)) {
             investigator.lexicon.push(entry);
           }
         });
       }
-      if (!investigator.completedRecords.includes(recordId)) {
-        investigator.completedRecords.push(recordId);
-      }
       saveInvestigator();
 
-      if (!investigator.alias) {
-        showScreen('register', { recordId });
+      const nextStageIndex = investigator.currentStage + 1;
+      const hasNextStage = nextStageIndex < stages.length;
+
+      if (hasNextStage) {
+        showCuratorResponse(
+          responseArea,
+          stage.acceptanceResponse,
+          () => {
+            investigator.currentStage = nextStageIndex;
+            saveInvestigator();
+            showStagePrompt(recordId, nextStageIndex);
+          }
+        );
       } else {
-        showScreen('completion', { recordId });
+        if (!investigator.completedRecords.includes(recordId)) {
+          investigator.completedRecords.push(recordId);
+        }
+        saveInvestigator();
+
+        showCuratorResponse(
+          responseArea,
+          stage.acceptanceResponse,
+          () => {
+            if (!investigator.alias) {
+              showScreen('register', { recordId });
+            } else {
+              showScreen('completion', { recordId });
+            }
+          }
+        );
       }
 
     } else {
-      // Show incorrect response, then restore prompt and form below
+      const hintSect = document.getElementById('hint-section');
+      if (hintSect) hintSect.style.display = 'block';
+
+      const wrongCase = isWrongCase(finding, stage);
+
+      const incorrectMessage = wrongCase
+        ? [
+            'Your finding does not agree with other observations.',
+            'The Society\'s records demand precision. Transcribe what you observe exactly as it is inscribed upon the memorial — every letter faithfully recorded.'
+          ]
+        : [
+            'Your finding does not agree with other observations.',
+            'Return your attention to what stands before you, and submit only what you are able to verify directly.'
+          ];
+
       showCuratorResponse(
         responseArea,
-        [
-          'Your finding does not agree with other observations.',
-          'Return your attention to what stands before you, and submit only what you are able to verify directly.'
-        ],
+        incorrectMessage,
         () => {
-          // Move and restore prompt, form, and hint BELOW the response
           const screenContent = document.querySelector('.screen-content');
-
           [investigationPrompt, findingForm, hintSection].forEach(el => {
             if (el) {
               screenContent.appendChild(el);
@@ -652,19 +787,24 @@ function submitFinding(recordId) {
               setTimeout(() => { el.style.opacity = '1'; }, 50);
             }
           });
-
           if (input) {
             input.disabled = false;
             input.value = '';
           }
           if (submitBtn) submitBtn.disabled = false;
-
-          // Scroll to bottom to reveal restored elements
           scrollToBottom();
         }
       );
     }
-  }, 15000);
+  }
+
+  reviewPanel.addEventListener('click', () => {
+    currentTypewriterSkipped = true;
+    clearTimeout(reviewTimeout);
+    evaluateAndRespond();
+  });
+
+  const reviewTimeout = setTimeout(evaluateAndRespond, 15000 * investigator.submissionCount);
 }
 
 // ── Hint Petition ─────────────────────────────────────────────
@@ -673,7 +813,11 @@ function petitionForHint(recordId) {
   const responseArea = document.getElementById('curator-response-area');
   const hintBtn = document.getElementById('hint-btn');
 
-  if (!record || !record.puzzle.hint) return;
+  const mode = investigator.alias ? 'registered' : 'unregistered';
+  const stages = record.investigation[mode].stages;
+  const stage = stages[investigator.currentStage];
+
+  if (!stage || !stage.hint) return;
 
   if (!investigator.hintPetitions[recordId]) {
     investigator.hintPetitions[recordId] = 0;
@@ -696,11 +840,14 @@ function petitionForHint(recordId) {
       responseArea,
       [
         'The Curator offers the following observation, in the hope that it may direct your attention more precisely.',
-        record.puzzle.hint,
+        stage.hint,
         'The Society trusts that you will arrive at your finding through your own careful observation.'
-      ]
+      ],
+      () => {
+        scrollToBottom();
+        if (hintBtn) hintBtn.disabled = false;
+      }
     );
-    if (hintBtn) hintBtn.disabled = false;
   }, hintDelay);
 }
 
@@ -734,25 +881,72 @@ const records = {
     id: 'r001',
     designation: 'Record I',
     title: 'The Circle of Fifteen',
+
     curatorIntroduction: [
-      'Welcome, Investigator. Before you stands a memorial whose arrangement carries meaning beyond its inscription.',
-      'Observe carefully. Every detail has purpose.'
+      'Before you stand fifteen, arranged in a circle — a memorial whose arrangement carries meaning beyond the names it bears.',
+      'Observe carefully. Each position has been chosen with purpose. Number the stars from the north, beginning at one. Name the core value designated by the tenth.'
     ],
-    puzzle: {
-      prompt: 'How many stars form the memorial\'s circle?',
-      instructions: 'Enter your finding as a number, Roman numeral, or written word.',
-      hint: 'Count the stars carefully, then consider whether their number corresponds to the names preserved upon the memorial.',
-      acceptableFindings: ['15', 'fifteen', 'XV', 'xv']
+
+    investigation: {
+
+      unregistered: {
+        stages: [
+          {
+            prompt: 'What core value is designated by the tenth position?',
+            instructions: 'Record the value precisely as it appears upon the memorial.',
+            hint: 'Accuracy is paramount in the Society\'s records. Transcribe what you observe exactly as it is inscribed — every letter as it appears.',
+            acceptableFindings: ['RESPECT'],
+            multiAnswer: false,
+            lexiconEntries: ['RESPECT'],
+            acceptanceResponse: [
+              'Your finding is consistent with previous observations.',
+              'Respect. It is among the most enduring of virtues, and among the most difficult to sustain under trial. It has been entered into your Lexicon.',
+              'The Society asks that you look further. Four additional virtues are memorialized here alongside Respect. Name them.'
+            ]
+          },
+          {
+            prompt: 'Four additional core values are memorialized upon this circle alongside Respect. Name them.',
+            instructions: 'Enter the four values separated by commas or spaces, in any order. Record them precisely as they appear.',
+            hint: 'Examine each star in the circle carefully. Four bear inscriptions you have not yet recorded. Transcribe each exactly as it appears.',
+            acceptableFindings: ['LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
+            multiAnswer: true,
+            lexiconEntries: ['LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
+            acceptanceResponse: [
+              'These findings concur with previous investigations.',
+              'Loyalty, Duty, Courage, and Honor have been entered into your Lexicon.',
+              'Your diligence here is appreciated. The Society invites you to preserve these findings in your Ledger.'
+            ]
+          }
+        ]
+      },
+
+      registered: {
+        stages: [
+          {
+            prompt: 'Number the stars from the north, beginning at one. Name the core value designated by the tenth.',
+            instructions: 'Record the value precisely as it appears upon the memorial.',
+            hint: 'Accuracy is paramount in the Society\'s records. Transcribe what you observe exactly as it is inscribed — every letter as it appears.',
+            acceptableFindings: ['RESPECT'],
+            multiAnswer: false,
+            lexiconEntries: ['RESPECT'],
+            acceptanceResponse: [
+              'Your finding is consistent with previous observations.',
+              'The Society asks that you continue your examination of this Record.'
+            ]
+          }
+        ]
+      }
     },
-    lexiconEntries: ['memorial', 'circle', 'servicemen'],
+
     completion: {
       curatorAcknowledgement: [
-        'Well observed, Investigator.',
-        'The circle contains fifteen stars, honouring the fifteen servicemen named by the memorial.'
+        'This Record has been recovered.',
+        'Well observed, Investigator.'
       ],
       narrative: [
-        'This arrangement was not accidental. The designer chose to honour each name individually, placing a star for every life given in service to this community.',
-        'Most pass this memorial daily without noticing what you have now recovered.'
+        'These five core values — Respect, Loyalty, Duty, Courage, and Honor — were not chosen arbitrarily. They were inscribed here to remind those who pass that the fifteen honoured by this memorial did not fall by accident.',
+        'They fell in the exercise of these qualities, carried to their final measure.',
+        'Most pass this memorial without reading what it has taken such care to preserve. You have not.'
       ]
     }
   }
