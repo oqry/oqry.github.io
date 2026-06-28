@@ -138,7 +138,9 @@ function typewriteElement(element, text, mode, onComplete) {
     element.textContent = displayed;
     i++;
 
-    element.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (element.style.visibility !== 'hidden' && element.closest('.assignment-puzzle')?.style.opacity !== '0') {
+      element.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
 
     setTimeout(next, charDelay(char, peek, mode));
   }
@@ -241,6 +243,9 @@ function initScreen(screenName) {
   app.querySelectorAll('[data-text]').forEach(el => {
     el.textContent = '';
     el.style.visibility = 'hidden';
+    if (el.closest('.assignment-puzzle')) {
+      el.dataset.skip = 'true';
+    }
   });
 
   app.querySelectorAll(
@@ -248,7 +253,9 @@ function initScreen(screenName) {
     '.investigation-prompt, .hint-section, ' +
     '.recovery-code-display, .historical-narrative, ' +
     '.lexicon-additions, .screen-actions, ' +
-    '.screen-rule, .archive-header'
+    '.screen-rule, .archive-header, ' +
+    '.assignment-puzzle, .ledger-section, ' +
+    '.assignment-puzzle .finding-form'
   ).forEach(el => {
     el.style.opacity = '0';
     el.style.transition = 'opacity 0.7s ease';
@@ -263,7 +270,9 @@ function initScreen(screenName) {
     });
   } else {
     app.querySelectorAll('.curator-panel [data-text]').forEach(el => {
-      sequence.push({ element: el, mode: 'curator' });
+      if (!el.dataset.skip) {
+        sequence.push({ element: el, mode: 'curator' });
+      }
     });
   }
 
@@ -281,12 +290,38 @@ function initScreen(screenName) {
         '.investigation-prompt, .hint-section, ' +
         '.recovery-code-display, .historical-narrative, ' +
         '.lexicon-additions, .screen-actions, ' +
-        '.screen-rule, .archive-header'
+        '.screen-rule, .archive-header, ' +
+        '.assignment-puzzle, .ledger-section, ' +
+        '.assignment-puzzle .finding-form'
       ).forEach(el => {
         el.style.opacity = '1';
         el.style.pointerEvents = 'auto';
       });
-      scrollToBottom();
+
+      if (screenName === 'archive') {
+        const assignmentPanel = document.querySelector('.assignment-puzzle .curator-panel');
+        if (assignmentPanel) {
+          const voices = Array.from(assignmentPanel.querySelectorAll('[data-text]'));
+          voices.forEach(v => {
+            v.textContent = '';
+            v.style.visibility = 'hidden';
+          });
+          const form = document.querySelector('.assignment-puzzle .finding-form');
+          if (form) {
+            form.style.opacity = '0';
+            form.style.pointerEvents = 'none';
+          }
+          typewriteSequence(voices.map(el => ({ element: el, mode: 'curator' })), () => {
+            if (form) {
+              form.style.opacity = '1';
+              form.style.pointerEvents = 'auto';
+            }
+            scrollToBottom();
+          });
+        }
+      } else {
+        scrollToBottom();
+      }
     }, 400);
   });
 }
@@ -298,7 +333,7 @@ function showCuratorResponse(container, paragraphs, onComplete) {
     <div class="curator-panel curator-response">
       <p class="curator-label">The Curator</p>
       ${paragraphs.map(p =>
-        `<p class="curator-voice" data-text="${p}"></p>`
+        `<p class="curator-voice" data-text="${p.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"></p>`
       ).join('')}
     </div>
   `;
@@ -589,48 +624,84 @@ const screens = {
     `;
   },
 
-  archive: () => `
-    <div class="screen" id="screen-archive">
-      ${masthead()}
-      <main class="screen-content">
+  archive: () => {
+    const completedCount = investigator.completedRecords.length;
+    const hasCompleted = completedCount > 0;
 
-        <div class="archive-header">
-          <h1 class="archive-title">The Archive</h1>
-          ${investigator.alias
-            ? `<p class="investigator-alias">Investigator ${investigator.alias}</p>`
-            : ''}
-        </div>
+    return `
+      <div class="screen" id="screen-archive">
+        ${masthead()}
+        <main class="screen-content">
 
-        <div class="curator-panel" id="curator-archive">
-          <p class="curator-label">The Curator</p>
-          <p class="curator-voice" data-text="Your Ledger is being prepared. The Society is consulting its records to determine which site would most benefit from your attention next. You will receive your assignment presently."></p>
-          <p class="curator-voice" data-text="What you have already recovered is preserved below."></p>
-        </div>
+          <div class="archive-header">
+            <h1 class="archive-title">The Archive</h1>
+            ${investigator.alias
+              ? `<p class="investigator-alias">Investigator ${investigator.alias}</p>`
+              : ''}
+          </div>
 
-        ${investigator.completedRecords.length > 0 ? `
-        <div class="lexicon-additions">
-          <p class="lexicon-label">Records Recovered</p>
-          <ul class="lexicon-list">
-            ${investigator.completedRecords.map(id => {
-              const r = getRecord(id);
-              return r ? `<li class="lexicon-entry">${r.title}</li>` : '';
-            }).join('')}
-          </ul>
-        </div>` : ''}
+          <div class="curator-panel" id="curator-archive">
+            <p class="curator-label">The Curator</p>
+            <p class="curator-voice" data-text="Your Ledger has been entered into the Archive, Investigator ${investigator.alias}."></p>
+            <p class="curator-voice" data-text="The Society has identified a site that warrants your attention. It stands where two of this region's defining histories meet — one drawn from the earth, the other grown upon it. Both have left their mark upon the landscape in ways that most who pass no longer notice."></p>
+            <p class="curator-voice" data-text="Before the Society may disclose the location of the next Query Reference, it asks that you demonstrate your continued diligence. The answer to the following will unlock your assignment."></p>
+          </div>
 
-        ${investigator.lexicon.length > 0 ? `
-        <div class="lexicon-additions">
-          <p class="lexicon-label">Your Lexicon</p>
-          <ul class="lexicon-list">
-            ${investigator.lexicon.map(entry =>
-              `<li class="lexicon-entry">${entry}</li>`
-            ).join('')}
-          </ul>
-        </div>` : ''}
+          <div class="assignment-puzzle" id="assignment-puzzle" style="opacity:0;pointer-events:none;">
+            <div class="curator-panel">
+              <p class="curator-label">The Curator</p>
+              <p class="curator-voice" data-text="The Society presents the following calculation for your consideration."></p>
+              <p class="curator-voice" data-text="Multiply the count of stars composing a circle by the number of points upon each. From that product, subtract the combined letter count of RESPECT, LOYALTY, and COURAGE. Note the result. Then subtract instead the combined letter count of HONOR, DUTY, LOYALTY, and SACRIFICE. Note that result also. Present both results here:"></p>
+            </div>
+            <div class="finding-form" style="opacity:0;pointer-events:none;">
+              <input
+                type="text"
+                id="assignment-input"
+                class="finding-input"
+                placeholder="Enter your answer"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+              />
+              <button class="btn-primary" onclick="submitAssignment()">
+                Submit
+              </button>
+            </div>
+            <div id="assignment-response"></div>
+          </div>
 
-      </main>
-    </div>
-  `,
+          ${hasCompleted ? `
+          <div class="ledger-section" id="completed-records-section">
+            <div class="lexicon-additions">
+              <p class="lexicon-label">Records Recovered</p>
+              <ul class="lexicon-list">
+                ${investigator.completedRecords.map(id => {
+                  const r = getRecord(id);
+                  return r ? `<li class="lexicon-entry">${r.title}</li>` : '';
+                }).join('')}
+              </ul>
+            </div>
+          </div>` : ''}
+
+          ${investigator.lexicon.length > 0 ? `
+          <div class="ledger-section" id="lexicon-section">
+            <div class="lexicon-additions">
+              <p class="lexicon-label">Your Lexicon — ${investigator.lexicon.length} ${investigator.lexicon.length === 1 ? 'entry' : 'entries'}</p>
+              <div class="lexicon-toggle" onclick="toggleLexicon()">
+                <span id="lexicon-toggle-label">Show Lexicon</span>
+              </div>
+              <ul class="lexicon-list" id="lexicon-list" style="display:none">
+                ${[...investigator.lexicon].sort().map(entry =>
+                  `<li class="lexicon-entry">${entry}</li>`
+                ).join('')}
+              </ul>
+            </div>
+          </div>` : ''}
+
+        </main>
+      </div>
+    `;
+  },
 
   notFound: () => `
     <div class="screen" id="screen-notFound">
@@ -1073,7 +1144,7 @@ const records = {
     completion: {
       curatorAcknowledgement: [
         'This Record has been recovered.',
-        'Well observed, Investigator.'
+        `Well observed, Investigator ${investigator.alias}.`
       ],
       narrative: [
         'These five core values — Respect, Loyalty, Duty, Courage, and Honor — were not chosen arbitrarily. They were inscribed here to remind those who pass that the fifteen honoured by this memorial did not fall by accident.',
@@ -1083,6 +1154,75 @@ const records = {
     }
   }
 };
+
+function toggleLexicon() {
+  const list = document.getElementById('lexicon-list');
+  const label = document.getElementById('lexicon-toggle-label');
+  if (!list || !label) return;
+  const isHidden = list.style.display === 'none' || list.style.display === '';
+  list.style.display = isHidden ? 'flex' : 'none';
+  label.textContent = isHidden ? 'Hide Lexicon' : 'Show Lexicon';
+}
+
+function submitAssignment() {
+  const input = document.getElementById('assignment-input');
+  const responseArea = document.getElementById('assignment-response');
+  const answer = input ? input.value.trim() : '';
+
+  if (!answer) return;
+
+  const parts = answer.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+  const isCorrect = parts.length === 2 &&
+    ((parts[0] === '54' && parts[1] === '50') || (parts[0] === '50' && parts[1] === '54'));
+
+  if (isCorrect) {
+    const btn = document.querySelector('#assignment-puzzle .btn-primary');
+    if (input) input.disabled = true;
+    if (btn) btn.disabled = true;
+
+    if (!investigator.lexicon.includes('SACRIFICE')) {
+      investigator.lexicon.push('SACRIFICE');
+    }
+    if (!investigator.lexicon.includes('54')) {
+      investigator.lexicon.push('54');
+    }
+    if (!investigator.lexicon.includes('50')) {
+      investigator.lexicon.push('50');
+    }
+    saveInvestigator();
+    if (investigator.cloudId) {
+      saveLexiconEntry(investigator.cloudId, 'SACRIFICE', 'assignment');
+    }
+
+    const lexiconList = document.getElementById('lexicon-list');
+    const lexiconLabel = document.querySelector('#lexicon-section .lexicon-label');
+    if (lexiconList) {
+      lexiconList.innerHTML = [...investigator.lexicon].sort().map(entry =>
+        `<li class="lexicon-entry">${entry}</li>`
+      ).join('');
+    }
+    if (lexiconLabel) {
+      const count = investigator.lexicon.length;
+      lexiconLabel.textContent = `Your Lexicon — ${count} ${count === 1 ? 'entry' : 'entries'}`;
+    }
+
+    const coords = '33°__\'54"N  117°__\'57"W';
+    showCuratorResponse(responseArea, [
+      'Your calculation is correct.',
+      'The Society discloses the following coordinates for your next assignment.',
+      coords,
+      'Complete the coordinates above with entries in your Lexicon, and you shall be prepared to investigate your next Record.',
+      'Seek the Marker. It will make itself known.'
+    ], () => {
+      scrollToBottom();
+    });
+
+  } else {
+    showCuratorResponse(responseArea, [
+      'That does not accord with the Society\'s calculation. Return your attention to the question and submit only what the arithmetic supports.'
+    ]);
+  }
+}
 
 // ── Dev Utilities ─────────────────────────────────────────────
 function devReset() {
@@ -1100,6 +1240,64 @@ function devReset() {
   showScreen('firstEncounter', { recordId: 'r001' });
 }
 window.devReset = devReset;
+
+// Jump directly to Archive as a registered investigator with r001 complete
+function devGoArchive() {
+  localStorage.clear();
+  Object.assign(investigator, {
+    alias: 'TestInvestigator',
+    recoveryCode: 'TEST-000-TEST',
+    cloudId: null,
+    completedRecords: ['r001'],
+    lexicon: ['RESPECT', 'LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
+    currentRecordId: 'r001',
+    currentStage: 0,
+    hintPetitions: {},
+    submissionCount: 0
+  });
+  saveInvestigator();
+  showScreen('archive');
+}
+
+// Jump directly to investigation screen for a specific record
+function devGoInvestigation(recordId = 'r001') {
+  localStorage.clear();
+  Object.assign(investigator, {
+    alias: null,
+    recoveryCode: null,
+    cloudId: null,
+    completedRecords: [],
+    lexicon: [],
+    currentRecordId: recordId,
+    currentStage: 0,
+    hintPetitions: {},
+    submissionCount: 0
+  });
+  saveInvestigator();
+  showScreen('firstEncounter', { recordId });
+}
+
+// Jump directly to completion screen
+function devGoCompletion(recordId = 'r001') {
+  localStorage.clear();
+  Object.assign(investigator, {
+    alias: 'TestInvestigator',
+    recoveryCode: 'TEST-000-TEST',
+    cloudId: null,
+    completedRecords: [recordId],
+    lexicon: ['RESPECT', 'LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
+    currentRecordId: recordId,
+    currentStage: 0,
+    hintPetitions: {},
+    submissionCount: 0
+  });
+  saveInvestigator();
+  showScreen('completion', { recordId });
+}
+
+window.devGoArchive = devGoArchive;
+window.devGoInvestigation = devGoInvestigation;
+window.devGoCompletion = devGoCompletion;
 
 // ── Initialise ────────────────────────────────────────────────
 loadInvestigator();

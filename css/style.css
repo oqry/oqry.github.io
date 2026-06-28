@@ -334,6 +334,27 @@ body {
   font-family: 'IM Fell English SC', Georgia, serif;
 }
 
+.lexicon-toggle {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  background-color: transparent;
+  color: #1a2744;
+  border: 1px solid #1a2744;
+  border-bottom: 2px solid #1a2744;
+  padding: 0.5rem 1.25rem;
+  font-family: 'IM Fell English SC', Georgia, serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  width: auto;
+  transition: all 0.2s;
+}
+
+.lexicon-toggle:hover {
+  background-color: #1a2744;
+  color: #f2ead8;
+}
+
 /* ── Recovery Code ─────────────────────────────────────────── */
 
 .recovery-code-display {
