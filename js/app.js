@@ -1216,87 +1216,80 @@ async function submitAssignment() {
 
   if (!answer) return;
 
-  // Disable while checking
   if (input) input.disabled = true;
   if (btn) btn.disabled = true;
 
-  showCuratorResponse(responseArea, [
-    'The Curator is verifying your calculation. One moment.'
-  ]);
+  function addCorrectLexiconEntries() {
+    ['TRUTH', 'SOCIETY', 'DISCOVERY', 'DISCERNMENT'].forEach(word => {
+      if (!investigator.lexicon.includes(word)) investigator.lexicon.push(word);
+    });
+    saveInvestigator();
+    if (investigator.cloudId) {
+      ['TRUTH', 'SOCIETY', 'DISCOVERY', 'DISCERNMENT'].forEach(word => {
+        saveLexiconEntry(investigator.cloudId, word, 'assignment');
+      });
+    }
+    const lexiconList = document.getElementById('lexicon-list');
+    const lexiconLabel = document.querySelector('#lexicon-section .lexicon-label');
+    if (lexiconList) {
+      lexiconList.innerHTML = [...investigator.lexicon].sort().map(entry =>
+        `<li class="lexicon-entry">${entry}</li>`
+      ).join('');
+    }
+    if (lexiconLabel) {
+      const count = investigator.lexicon.length;
+      lexiconLabel.textContent = `Your Lexicon — ${count} ${count === 1 ? 'entry' : 'entries'}`;
+    }
+  }
 
-  // ── Path A: verify via Supabase (step ID present) ──────────
+  function showIncorrect() {
+    if (input) input.disabled = false;
+    if (btn) btn.disabled = false;
+    showCuratorResponse(responseArea, [
+      'That does not accord with the Society\'s calculation. Return your attention to the question and submit only what the arithmetic supports.'
+    ]);
+  }
+
   if (investigator.currentStepId) {
     const result = await verifyAnswer(investigator.currentStepId, answer);
 
     if (result && result.correct) {
-      const location = await revealLocation(investigator.currentAssignmentId, 'DMS');
-
-      if (!investigator.lexicon.includes('SACRIFICE')) {
-        investigator.lexicon.push('SACRIFICE');
-      }
-      saveInvestigator();
-      if (investigator.cloudId) {
-        saveLexiconEntry(investigator.cloudId, 'SACRIFICE', 'assignment');
-      }
-
-      const lexiconList = document.getElementById('lexicon-list');
-      const lexiconLabel = document.querySelector('#lexicon-section .lexicon-label');
-      if (lexiconList) {
-        lexiconList.innerHTML = [...investigator.lexicon].sort().map(entry =>
-          `<li class="lexicon-entry">${entry}</li>`
-        ).join('');
-      }
-      if (lexiconLabel) {
-        const count = investigator.lexicon.length;
-        lexiconLabel.textContent = `Your Lexicon — ${count} ${count === 1 ? 'entry' : 'entries'}`;
-      }
+      const location = await revealLocation(investigator.currentAssignmentId, 'dms');
+      addCorrectLexiconEntries();
 
       const coordLine = (location && location.coordinates)
         ? location.coordinates
-        : '33°__\'__"N  117°__\'__"W';
+        : '33°__\'54"N  117°__\'57"W';
 
       showCuratorResponse(responseArea, [
         'Your calculation is correct.',
         'The Society discloses the following coordinates for your next assignment.',
         coordLine,
-        'Complete the coordinates with entries from your Lexicon, and you shall be prepared to investigate your next Record.',
+        'Complete the coordinates above with entries in your Lexicon, and you shall be prepared to investigate your next Record.',
         'Seek the Marker. It will make itself known.'
       ], () => { scrollToBottom(); });
 
     } else {
-      if (input) input.disabled = false;
-      if (btn) btn.disabled = false;
-      showCuratorResponse(responseArea, [
-        'That does not accord with the Society\'s calculation. Return your attention to the question and submit only what the arithmetic supports.'
-      ]);
+      showIncorrect();
     }
 
-  // ── Path B: local fallback (no step ID — dev / offline) ───
   } else {
     const parts = answer.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
     const isCorrect = parts.length === 2 &&
       ((parts[0] === '54' && parts[1] === '50') || (parts[0] === '50' && parts[1] === '54'));
 
     if (isCorrect) {
-      if (!investigator.lexicon.includes('SACRIFICE')) {
-        investigator.lexicon.push('SACRIFICE');
-      }
-      saveInvestigator();
-
+      addCorrectLexiconEntries();
       showCuratorResponse(responseArea, [
         'Your calculation is correct.',
         'The Society discloses the following coordinates for your next assignment.',
         '33°__\'54"N  117°__\'57"W',
-        'Complete the coordinates with entries from your Lexicon, and you shall be prepared to investigate your next Record.',
+        'Complete the coordinates above with entries in your Lexicon, and you shall be prepared to investigate your next Record.',
         'Seek the Marker. It will make itself known.'
       ], () => { scrollToBottom(); });
 
     } else {
-      if (input) input.disabled = false;
-      if (btn) btn.disabled = false;
-      showCuratorResponse(responseArea, [
-        'That does not accord with the Society\'s calculation. Return your attention to the question and submit only what the arithmetic supports.'
-      ]);
+      showIncorrect();
     }
   }
 }
