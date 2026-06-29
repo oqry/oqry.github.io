@@ -1065,7 +1065,7 @@ async function completeRegistration(recordId) {
 
   investigator.alias = alias;
 
-  const societyWords = ['LOST', 'TRUTH', 'RECORD', 'INQUIRY', alias.toUpperCase()];
+  const societyWords = ['TRUTH', 'SOCIETY', 'DISCOVERY', 'DISCERNMENT', alias.toUpperCase()];
   societyWords.forEach(word => {
     if (!investigator.lexicon.includes(word)) {
       investigator.lexicon.push(word);
@@ -1197,6 +1197,7 @@ const records = {
   }
 };
 
+// ── Lexicon Toggle ────────────────────────────────────────────
 function toggleLexicon() {
   const list = document.getElementById('lexicon-list');
   const label = document.getElementById('lexicon-toggle-label');
@@ -1206,63 +1207,97 @@ function toggleLexicon() {
   label.textContent = isHidden ? 'Hide Lexicon' : 'Show Lexicon';
 }
 
-function submitAssignment() {
+// ── Assignment Submission ─────────────────────────────────────
+async function submitAssignment() {
   const input = document.getElementById('assignment-input');
   const responseArea = document.getElementById('assignment-response');
+  const btn = document.querySelector('#assignment-puzzle .btn-primary');
   const answer = input ? input.value.trim() : '';
 
   if (!answer) return;
 
-  const parts = answer.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
-  const isCorrect = parts.length === 2 &&
-    ((parts[0] === '54' && parts[1] === '50') || (parts[0] === '50' && parts[1] === '54'));
+  // Disable while checking
+  if (input) input.disabled = true;
+  if (btn) btn.disabled = true;
 
-  if (isCorrect) {
-    const btn = document.querySelector('#assignment-puzzle .btn-primary');
-    if (input) input.disabled = true;
-    if (btn) btn.disabled = true;
+  showCuratorResponse(responseArea, [
+    'The Curator is verifying your calculation. One moment.'
+  ]);
 
-    if (!investigator.lexicon.includes('SACRIFICE')) {
-      investigator.lexicon.push('SACRIFICE');
-    }
-    if (!investigator.lexicon.includes('54')) {
-      investigator.lexicon.push('54');
-    }
-    if (!investigator.lexicon.includes('50')) {
-      investigator.lexicon.push('50');
-    }
-    saveInvestigator();
-    if (investigator.cloudId) {
-      saveLexiconEntry(investigator.cloudId, 'SACRIFICE', 'assignment');
+  // ── Path A: verify via Supabase (step ID present) ──────────
+  if (investigator.currentStepId) {
+    const result = await verifyAnswer(investigator.currentStepId, answer);
+
+    if (result && result.correct) {
+      const location = await revealLocation(investigator.currentAssignmentId, 'DMS');
+
+      if (!investigator.lexicon.includes('SACRIFICE')) {
+        investigator.lexicon.push('SACRIFICE');
+      }
+      saveInvestigator();
+      if (investigator.cloudId) {
+        saveLexiconEntry(investigator.cloudId, 'SACRIFICE', 'assignment');
+      }
+
+      const lexiconList = document.getElementById('lexicon-list');
+      const lexiconLabel = document.querySelector('#lexicon-section .lexicon-label');
+      if (lexiconList) {
+        lexiconList.innerHTML = [...investigator.lexicon].sort().map(entry =>
+          `<li class="lexicon-entry">${entry}</li>`
+        ).join('');
+      }
+      if (lexiconLabel) {
+        const count = investigator.lexicon.length;
+        lexiconLabel.textContent = `Your Lexicon — ${count} ${count === 1 ? 'entry' : 'entries'}`;
+      }
+
+      const coordLine = (location && location.coordinates)
+        ? location.coordinates
+        : '33°__\'__"N  117°__\'__"W';
+
+      showCuratorResponse(responseArea, [
+        'Your calculation is correct.',
+        'The Society discloses the following coordinates for your next assignment.',
+        coordLine,
+        'Complete the coordinates with entries from your Lexicon, and you shall be prepared to investigate your next Record.',
+        'Seek the Marker. It will make itself known.'
+      ], () => { scrollToBottom(); });
+
+    } else {
+      if (input) input.disabled = false;
+      if (btn) btn.disabled = false;
+      showCuratorResponse(responseArea, [
+        'That does not accord with the Society\'s calculation. Return your attention to the question and submit only what the arithmetic supports.'
+      ]);
     }
 
-    const lexiconList = document.getElementById('lexicon-list');
-    const lexiconLabel = document.querySelector('#lexicon-section .lexicon-label');
-    if (lexiconList) {
-      lexiconList.innerHTML = [...investigator.lexicon].sort().map(entry =>
-        `<li class="lexicon-entry">${entry}</li>`
-      ).join('');
-    }
-    if (lexiconLabel) {
-      const count = investigator.lexicon.length;
-      lexiconLabel.textContent = `Your Lexicon — ${count} ${count === 1 ? 'entry' : 'entries'}`;
-    }
-
-    const coords = '33°__\'54"N  117°__\'57"W';
-    showCuratorResponse(responseArea, [
-      'Your calculation is correct.',
-      'The Society discloses the following coordinates for your next assignment.',
-      coords,
-      'Complete the coordinates above with entries in your Lexicon, and you shall be prepared to investigate your next Record.',
-      'Seek the Marker. It will make itself known.'
-    ], () => {
-      scrollToBottom();
-    });
-
+  // ── Path B: local fallback (no step ID — dev / offline) ───
   } else {
-    showCuratorResponse(responseArea, [
-      'That does not accord with the Society\'s calculation. Return your attention to the question and submit only what the arithmetic supports.'
-    ]);
+    const parts = answer.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+    const isCorrect = parts.length === 2 &&
+      ((parts[0] === '54' && parts[1] === '50') || (parts[0] === '50' && parts[1] === '54'));
+
+    if (isCorrect) {
+      if (!investigator.lexicon.includes('SACRIFICE')) {
+        investigator.lexicon.push('SACRIFICE');
+      }
+      saveInvestigator();
+
+      showCuratorResponse(responseArea, [
+        'Your calculation is correct.',
+        'The Society discloses the following coordinates for your next assignment.',
+        '33°__\'54"N  117°__\'57"W',
+        'Complete the coordinates with entries from your Lexicon, and you shall be prepared to investigate your next Record.',
+        'Seek the Marker. It will make itself known.'
+      ], () => { scrollToBottom(); });
+
+    } else {
+      if (input) input.disabled = false;
+      if (btn) btn.disabled = false;
+      showCuratorResponse(responseArea, [
+        'That does not accord with the Society\'s calculation. Return your attention to the question and submit only what the arithmetic supports.'
+      ]);
+    }
   }
 }
 
@@ -1283,7 +1318,6 @@ function devReset() {
 }
 window.devReset = devReset;
 
-// Jump directly to Archive as a registered investigator with r001 complete
 function devGoArchive(cloudId = null) {
   localStorage.clear();
   Object.assign(investigator, {
@@ -1291,7 +1325,7 @@ function devGoArchive(cloudId = null) {
     recoveryCode: 'TEST-000-TEST',
     cloudId: null,
     completedRecords: ['r001'],
-    lexicon: ['RESPECT', 'LOYALTY', 'DUTY', 'COURAGE', 'HONOR'],
+    lexicon: ['RESPECT', 'LOYALTY', 'DUTY', 'COURAGE', 'HONOR', 'TRUTH', 'SOCIETY', 'DISCOVERY', 'DISCERNMENT', 'TESTINVESTIGATOR'],
     currentRecordId: 'r001',
     currentStage: 0,
     hintPetitions: {},
@@ -1302,7 +1336,6 @@ function devGoArchive(cloudId = null) {
   showScreen('archive');
 }
 
-// Jump directly to investigation screen for a specific record
 function devGoInvestigation(recordId = 'r001') {
   localStorage.clear();
   Object.assign(investigator, {
@@ -1320,7 +1353,6 @@ function devGoInvestigation(recordId = 'r001') {
   showScreen('firstEncounter', { recordId });
 }
 
-// Jump directly to completion screen
 function devGoCompletion(recordId = 'r001') {
   localStorage.clear();
   Object.assign(investigator, {
