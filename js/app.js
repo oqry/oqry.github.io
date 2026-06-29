@@ -300,17 +300,19 @@ function initScreen(screenName) {
 
       if (screenName === 'archive') {
         const assignmentPanel = document.querySelector('.assignment-puzzle .curator-panel');
-        if (assignmentPanel) {
+        const form = document.querySelector('.assignment-puzzle .finding-form');
+        if (form) {
+          form.style.opacity = '0';
+          form.style.pointerEvents = 'none';
+        }
+
+        function runAssignmentTypewriter() {
+          if (!assignmentPanel) return;
           const voices = Array.from(assignmentPanel.querySelectorAll('[data-text]'));
           voices.forEach(v => {
             v.textContent = '';
             v.style.visibility = 'hidden';
           });
-          const form = document.querySelector('.assignment-puzzle .finding-form');
-          if (form) {
-            form.style.opacity = '0';
-            form.style.pointerEvents = 'none';
-          }
           typewriteSequence(voices.map(el => ({ element: el, mode: 'curator' })), () => {
             if (form) {
               form.style.opacity = '1';
@@ -318,6 +320,33 @@ function initScreen(screenName) {
             }
             scrollToBottom();
           });
+        }
+
+        if (investigator.cloudId) {
+          generateAssignment(
+            investigator.cloudId,
+            'r002',
+            investigator.lexicon,
+            investigator.completedRecords.length,
+            [54, 50],
+            investigator.alias
+          ).then(result => {
+            if (result && result.puzzle_content && result.puzzle_content.puzzle_text) {
+              investigator.currentAssignmentId = result.assignment_id || null;
+              investigator.currentStepId = result.step_id || null;
+              const secondVoice = assignmentPanel ? assignmentPanel.querySelectorAll('[data-text]')[0] : null;
+              if (secondVoice) {
+                const puzzleText = result.puzzle_content.puzzle_text
+                  .replace(/Present both results here,?\s*separated by a space or comma\.?/gi, 'Present both results here:');
+                secondVoice.setAttribute('data-text', puzzleText);
+              }
+            }
+            runAssignmentTypewriter();
+          }).catch(() => {
+            runAssignmentTypewriter();
+          });
+        } else {
+          runAssignmentTypewriter();
         }
       } else {
         scrollToBottom();
@@ -650,7 +679,6 @@ const screens = {
           <div class="assignment-puzzle" id="assignment-puzzle" style="opacity:0;pointer-events:none;">
             <div class="curator-panel">
               <p class="curator-label">The Curator</p>
-              <p class="curator-voice" data-text="The Society presents the following calculation for your consideration."></p>
               <p class="curator-voice" data-text="Multiply the count of stars composing a circle by the number of points upon each. From that product, subtract the combined letter count of RESPECT, LOYALTY, and COURAGE. Note the result. Then subtract instead the combined letter count of HONOR, DUTY, LOYALTY, and SACRIFICE. Note that result also. Present both results here:"></p>
             </div>
             <div class="finding-form" style="opacity:0;pointer-events:none;">
@@ -1256,7 +1284,7 @@ function devReset() {
 window.devReset = devReset;
 
 // Jump directly to Archive as a registered investigator with r001 complete
-function devGoArchive() {
+function devGoArchive(cloudId = null) {
   localStorage.clear();
   Object.assign(investigator, {
     alias: 'TestInvestigator',
@@ -1269,6 +1297,7 @@ function devGoArchive() {
     hintPetitions: {},
     submissionCount: 0
   });
+  if (cloudId) investigator.cloudId = cloudId;
   saveInvestigator();
   showScreen('archive');
 }
