@@ -1036,6 +1036,14 @@ async function completeRegistration(recordId) {
   }
 
   investigator.alias = alias;
+
+  const societyWords = ['LOST', 'TRUTH', 'RECORD', 'INQUIRY', alias.toUpperCase()];
+  societyWords.forEach(word => {
+    if (!investigator.lexicon.includes(word)) {
+      investigator.lexicon.push(word);
+    }
+  });
+
   investigator.recoveryCode = generateRecoveryCode();
   saveInvestigator();
 
@@ -1048,8 +1056,14 @@ async function completeRegistration(recordId) {
     investigator.cloudId = cloudRecord.id;
     saveInvestigator();
 
+    societyWords.forEach(word => {
+      saveLexiconEntry(investigator.cloudId, word, 'society');
+    });
+
     investigator.lexicon.forEach(word => {
-      saveLexiconEntry(investigator.cloudId, word, investigator.currentRecordId);
+      if (!societyWords.includes(word)) {
+        saveLexiconEntry(investigator.cloudId, word, investigator.currentRecordId);
+      }
     });
 
     investigator.completedRecords.forEach(recordId => {
