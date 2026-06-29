@@ -611,9 +611,6 @@ const screens = {
     const record = getRecord(data.recordId);
     if (!record) return screens.notFound();
 
-    // Read alias at render time, not at definition time
-    const alias = investigator.alias || 'Investigator';
-
     return `
       <div class="screen" id="screen-completion">
         ${masthead(record.designation)}
@@ -626,7 +623,7 @@ const screens = {
 
           <div class="curator-panel" id="curator-completion">
             <p class="curator-label">The Curator</p>
-            ${record.completion.curatorAcknowledgement(alias).map(p =>
+            ${record.completion.curatorAcknowledgement.map(p =>
               `<p class="curator-voice" data-text="${p}"></p>`
             ).join('')}
           </div>
@@ -813,6 +810,7 @@ function submitFinding(recordId) {
     const accepted = evaluateFinding(finding, stage);
 
     if (accepted) {
+      console.log('Finding accepted. cloudId:', investigator.cloudId, 'stage:', investigator.currentStage);
       investigator.submissionCount = 0;
 
       if (stage.lexiconEntries) {
@@ -827,6 +825,7 @@ function submitFinding(recordId) {
       if (investigator.cloudId) {
         if (stage.lexiconEntries) {
           stage.lexiconEntries.forEach(word => {
+            console.log('Saving lexicon entry to cloud:', word, investigator.cloudId);
             saveLexiconEntry(investigator.cloudId, word, recordId);
           });
         }
@@ -852,10 +851,10 @@ function submitFinding(recordId) {
         saveInvestigator();
 
         if (investigator.cloudId) {
+          console.log('Saving completed record to cloud:', recordId, investigator.cloudId);
           saveCompletedRecord(investigator.cloudId, recordId);
         }
 
-        // Show acceptance response ONCE, then proceed
         showCuratorResponse(
           responseArea,
           stage.acceptanceResponse,
@@ -1185,10 +1184,9 @@ const records = {
     },
 
     completion: {
-      // Function so alias is read at render time, not definition time
-      curatorAcknowledgement: (alias) => [
+      curatorAcknowledgement: [
         'This Record has been recovered.',
-        `Well observed, Investigator ${alias}.`
+        `Well observed, Investigator ${investigator.alias}.`
       ],
       narrative: [
         'These five core values — Respect, Loyalty, Duty, Courage, and Honor — were not chosen arbitrarily. They were inscribed here to remind those who pass that the fifteen honoured by this memorial did not fall by accident.',
@@ -1254,9 +1252,9 @@ const records = {
     },
 
     completion: {
-      curatorAcknowledgement: (alias) => [
+      curatorAcknowledgement: [
         'This Record has been recovered.',
-        `Well observed, Investigator ${alias}.`
+        `Well observed, Investigator ${investigator.alias}.`
       ],
       narrative: [
         'Seiji Kunishima completed this sculpture in 1982. The contrast between the rough outer faces and the smooth inner surfaces was deliberate — the tension between what is exposed to the world and what is turned inward.',
@@ -1388,7 +1386,7 @@ function devGoArchive(cloudId = null) {
     recoveryCode: 'TEST-000-TEST',
     cloudId: null,
     completedRecords: ['r001'],
-    lexicon: ['RESPECT', 'LOYALTY', 'DUTY', 'COURAGE', 'HONOR', 'TRUTH', 'SOCIETY', 'DISCOVERY', 'DISCERNMENT'],
+    lexicon: ['RESPECT', 'LOYALTY', 'DUTY', 'COURAGE', 'HONOR', 'TRUTH', 'SOCIETY', 'DISCOVERY', 'DISCERNMENT', 'TESTINVESTIGATOR'],
     currentRecordId: 'r001',
     currentStage: 0,
     hintPetitions: {},
