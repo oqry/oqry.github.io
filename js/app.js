@@ -59,6 +59,28 @@ function loadInvestigator() {
   return false;
 }
 
+// ── Query Reference Marker Codes ──────────────────────────────
+// Physical markers carry a three-character Reference Number.
+// Alphabet: ACEFGHJKMNPRTWXY34679 (unambiguous; every code
+// contains at least one digit). Codes fold to uppercase.
+// This table MUST stay in agreement with the marker code chart
+// and the marker_code column in Supabase.
+const MARKER_CODES = {
+  'K6Y': 'r001',  // The Circle of Fifteen
+  '34K': 'r002'   // Stonework '82
+};
+
+function normalizeMarkerCode(raw) {
+  if (!raw) return null;
+  const code = raw.trim().toUpperCase();
+  return /^[ACEFGHJKMNPRTWXY34679]{3}$/.test(code) ? code : null;
+}
+
+function resolveMarkerCode(raw) {
+  const code = normalizeMarkerCode(raw);
+  return code ? (MARKER_CODES[code] || null) : null;
+}
+
 // ── Scroll to bottom ──────────────────────────────────────────
 function scrollToBottom() {
   setTimeout(() => {
@@ -491,6 +513,54 @@ const screens = {
     </div>
   `,
 
+  referenceEntry: (data = {}) => `
+    <div class="screen" id="screen-referenceEntry">
+      ${masthead()}
+      <main class="screen-content">
+
+        <div class="society-seal">✦ ✦ ✦</div>
+
+        <div class="curator-panel" id="curator-reference">
+          <p class="curator-label">The Curator</p>
+          ${data.unknown ? `
+          <p class="curator-voice" data-text="The Society holds no Record answering to the reference you have presented."></p>
+          <p class="curator-voice" data-text="If a Society marker stands before you, examine it once more, and transcribe its Reference Number precisely as it is inscribed — three characters, letters and numerals both."></p>
+          ` : `
+          <p class="curator-voice" data-text="You stand at the threshold of the Archive."></p>
+          <p class="curator-voice" data-text="The Society's Records are opened only in the presence of its markers. If one stands before you, enter the Reference Number inscribed upon it — three characters, letters and numerals both."></p>
+          `}
+        </div>
+
+        <div class="finding-form">
+          <input
+            type="text"
+            id="reference-input"
+            class="finding-input"
+            placeholder="Reference Number"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="characters"
+            maxlength="3"
+            style="text-transform:uppercase"
+          />
+          <button class="btn-primary" onclick="submitReferenceNumber()">
+            Present the Reference Number
+          </button>
+        </div>
+
+        <div id="reference-response-area"></div>
+
+        ${investigator.alias ? `
+        <div class="screen-actions">
+          <button class="btn-secondary" onclick="showScreen('archive')">
+            Return to the Archive
+          </button>
+        </div>` : ''}
+
+      </main>
+    </div>
+  `,
+
   investigation: (data = {}) => {
     const record = getRecord(data.recordId);
     if (!record) return screens.notFound();
@@ -746,6 +816,26 @@ const screens = {
     </div>
   `
 };
+
+// ── Reference Number Entry ────────────────────────────────────
+function submitReferenceNumber() {
+  const input = document.getElementById('reference-input');
+  const responseArea = document.getElementById('reference-response-area');
+  const raw = input ? input.value : '';
+
+  const recordId = resolveMarkerCode(raw);
+
+  if (recordId) {
+    investigator.currentRecordId = recordId;
+    saveInvestigator();
+    showScreen('firstEncounter', { recordId });
+  } else {
+    if (input) input.value = '';
+    showCuratorResponse(responseArea, [
+      'The Society holds no Record answering to this Reference Number. Examine the marker once more, and transcribe the inscription precisely as it appears.'
+    ], () => { scrollToBottom(); });
+  }
+}
 
 // ── Investigation Logic ───────────────────────────────────────
 function beginInvestigation(recordId) {
@@ -1441,11 +1531,23 @@ window.devGoCompletion = devGoCompletion;
 loadInvestigator();
 
 const urlParams = new URLSearchParams(window.location.search);
-const recordFromUrl = urlParams.get('r');
+const markerParam = urlParams.get('m');
+const legacyRecordParam = urlParams.get('r');  // deprecated
 
-if (recordFromUrl && records[recordFromUrl]) {
-  investigator.currentRecordId = recordFromUrl;
-  showScreen('firstEncounter', { recordId: recordFromUrl });
+if (markerParam) {
+  const resolvedRecordId = resolveMarkerCode(markerParam);
+  if (resolvedRecordId) {
+    investigator.currentRecordId = resolvedRecordId;
+    showScreen('firstEncounter', { recordId: resolvedRecordId });
+  } else {
+    // Unknown or malformed Reference Number — invite manual entry
+    showScreen('referenceEntry', { unknown: true });
+  }
+} else if (legacyRecordParam && records[legacyRecordParam]) {
+  console.warn('[SOI] The ?r= parameter is deprecated. Markers now use ?m=CODE.');
+  investigator.currentRecordId = legacyRecordParam;
+  showScreen('firstEncounter', { recordId: legacyRecordParam });
 } else {
-  showScreen('firstEncounter', { recordId: 'r001' });
+  // No marker presented — the threshold of the Archive
+  showScreen('referenceEntry', {});
 }
