@@ -264,6 +264,31 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Finding Submission ─────────────────────────────────────── */
+
+.finding-submission {
+  border-left: 1px solid #c9a84c;
+  padding: 0.25rem 0 0.25rem 1rem;
+  margin: 1.25rem 0 1rem;
+}
+
+.finding-submission-label {
+  font-family: 'IM Fell English SC', Georgia, serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8b6914;
+  margin: 0 0 0.2rem;
+}
+
+.finding-submission-text {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 0.95rem;
+  color: #5a4a2a;
+  line-height: 1.6;
+  margin: 0;
+}
+
 /* ── Reviewing Panel ───────────────────────────────────────── */
 
 .reviewing-panel {

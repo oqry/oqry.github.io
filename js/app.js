@@ -939,6 +939,14 @@ function submitFinding(recordId) {
     || document.querySelector('.finding-form');
   const hintSection = document.getElementById('hint-section');
 
+  const submissionLine = document.createElement('div');
+  submissionLine.className = 'finding-submission';
+  submissionLine.innerHTML =
+    '<p class="finding-submission-label">Finding submitted</p>' +
+    '<p class="finding-submission-text"></p>';
+  submissionLine.querySelector('.finding-submission-text').textContent = finding;
+  responseArea.parentNode.insertBefore(submissionLine, responseArea);
+
   [investigationPrompt, findingForm, hintSection].forEach(el => {
     if (el) {
       el.style.transition = 'opacity 0.4s ease';
