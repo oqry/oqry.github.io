@@ -95,12 +95,12 @@ async function verifyProximity(investigatorId, recordId, lat, lng) {
 
 // ── Supabase Table Functions ──────────────────────────────────
 
-async function saveInvestigatorToCloud({ alias, recovery_phrase, investigator_number }) {
+async function saveInvestigatorToCloud({ alias, recovery_phrase_hash, investigator_number }) {
   try {
     const { data, error } = await supabaseClient
       .from('investigators')
-      .insert({ alias, recovery_phrase, investigator_number })
-      .select()
+      .insert({ alias, recovery_phrase_hash, investigator_number })
+      .select('id, alias, investigator_number')
       .single();
     if (error) { console.error('saveInvestigatorToCloud:', error); return null; }
     return data;
@@ -110,20 +110,15 @@ async function saveInvestigatorToCloud({ alias, recovery_phrase, investigator_nu
   }
 }
 
-async function loadInvestigatorByPhrase(recoveryPhrase) {
+async function recoverLedger(alias, phrase) {
   try {
-    const { data, error } = await supabaseClient
-      .from('investigators')
-      .select('*')
-      .eq('recovery_phrase', recoveryPhrase)
-      .single();
-    if (error) { console.error('loadInvestigatorByPhrase:', error); return null; }
-    return data;
+    return await callEdgeFunction('recover-ledger', { alias, phrase });
   } catch (err) {
-    console.error('loadInvestigatorByPhrase exception:', err);
+    console.error('recoverLedger exception:', err);
     return null;
   }
 }
+
 
 async function checkAliasAvailable(alias) {
   try {

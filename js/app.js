@@ -29,6 +29,15 @@ function normalizeFinding(str) {
   return str.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+async function hashPhrase(phrase) {
+  const normalized = phrase.trim().toUpperCase().replace(/\s+/g, '');
+  const data = new TextEncoder().encode(normalized);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function generateRecoveryCode() {
   const words = [
     'ANCHOR','BRIDGE','CEDAR','CHRONICLE','COMPASS','DELTA','DOSSIER',
@@ -507,13 +516,18 @@ const screens = {
           <button class="btn-primary" onclick="beginInvestigation('${data.recordId || 'r001'}')">
             I am willing to proceed
           </button>
+          ${!investigator.alias ? `
+          <button class="btn-secondary" onclick="showScreen('recoverLedger')">
+            I am already known to the Society
+          </button>
+          ` : ''}
         </div>
 
       </main>
     </div>
   `,
 
-  referenceEntry: (data = {}) => `
+referenceEntry: (data = {}) => `
     <div class="screen" id="screen-referenceEntry">
       ${masthead()}
       <main class="screen-content">
@@ -550,12 +564,17 @@ const screens = {
 
         <div id="reference-response-area"></div>
 
-        ${investigator.alias ? `
         <div class="screen-actions">
+          ${investigator.alias ? `
           <button class="btn-secondary" onclick="showScreen('archive')">
             Return to the Archive
           </button>
-        </div>` : ''}
+          ` : `
+          <button class="btn-secondary" onclick="showScreen('recoverLedger')">
+            Recover the Ledger
+          </button>
+          `}
+        </div>
 
       </main>
     </div>
@@ -670,6 +689,55 @@ const screens = {
         <div class="screen-actions">
           <button class="btn-primary" onclick="showScreen('completion', {recordId: '${data.recordId}'})">
             I have recorded my Recovery Phrase
+          </button>
+        </div>
+
+      </main>
+    </div>
+  `,
+
+  recoverLedger: (data = {}) => `
+    <div class="screen" id="screen-recoverLedger">
+      ${masthead()}
+      <main class="screen-content">
+
+        <div class="society-seal">✦ ✦ ✦</div>
+
+        <div class="curator-panel" id="curator-recover">
+          <p class="curator-label">The Curator</p>
+          <p class="curator-voice" data-text="The Society maintains its Ledgers in perpetuity. If yours was established upon another device, it may be restored to this one."></p>
+          <p class="curator-voice" data-text="Present the name by which the Society knows you, together with the Recovery Phrase assigned to your Ledger. The Gatekeeper will examine both."></p>
+        </div>
+
+        <div class="finding-form recovery-form">
+          <input
+            type="text"
+            id="recover-alias-input"
+            class="finding-input"
+            placeholder="Your Ledger Name"
+            autocomplete="off"
+            maxlength="30"
+          />
+          <input
+            type="text"
+            id="recover-phrase-input"
+            class="finding-input"
+            placeholder="Your Recovery Phrase"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="characters"
+            style="text-transform:uppercase"
+          />
+          <button class="btn-primary" onclick="submitRecovery()">
+            Petition for Recovery
+          </button>
+        </div>
+
+        <div id="recovery-response-area"></div>
+
+        <div class="screen-actions">
+          <button class="btn-secondary" onclick="showScreen('referenceEntry')">
+            Return to the Threshold
           </button>
         </div>
 
@@ -1168,7 +1236,7 @@ async function completeRegistration(recordId) {
 
   const cloudRecord = await saveInvestigatorToCloud({
     alias: investigator.alias,
-    recovery_phrase: investigator.recoveryCode,
+    recovery_phrase_hash: await hashPhrase(investigator.recoveryCode),
     investigator_number: Date.now()
   });
   if (cloudRecord) {
@@ -1192,7 +1260,56 @@ async function completeRegistration(recordId) {
 
   showScreen('recoveryCode', { recordId });
 }
+// ── Ledger Recovery ───────────────────────────────────────────
+async function submitRecovery() {
+  const aliasInput = document.getElementById('recover-alias-input');
+  const phraseInput = document.getElementById('recover-phrase-input');
+  const responseArea = document.getElementById('recovery-response-area');
+  const btn = document.querySelector('.recovery-form .btn-primary');
 
+  const alias = aliasInput ? aliasInput.value.trim() : '';
+  const phrase = phraseInput
+    ? phraseInput.value.trim().toUpperCase().replace(/\s+/g, '')
+    : '';
+
+  if (!alias || !phrase) {
+    showCuratorResponse(responseArea, [
+      'The Gatekeeper requires both the Ledger Name and the Recovery Phrase before recovery may proceed.'
+    ], () => { scrollToBottom(); });
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+
+  const result = await recoverLedger(alias, phrase);
+
+  if (!result || result.recognized !== true) {
+    if (btn) btn.disabled = false;
+    showCuratorResponse(responseArea, [
+      'The Gatekeeper does not recognize this pairing of name and phrase.',
+      'Examine your written record once more, and present both precisely as they were assigned.'
+    ], () => { scrollToBottom(); });
+    return;
+  }
+
+  // Recognized. Rebuild local state from the Archive.
+  const cloudData = await loadInvestigatorData(result.investigator.id);
+
+  Object.assign(investigator, {
+    alias: result.investigator.alias,
+    recoveryCode: phrase,
+    cloudId: result.investigator.id,
+    completedRecords: cloudData.completedRecords,
+    lexicon: cloudData.lexicon,
+    currentRecordId: null,
+    currentStage: 0,
+    hintPetitions: {},
+    submissionCount: 0
+  });
+  saveInvestigator();
+
+  showScreen('archive');
+}
 // ── Records ───────────────────────────────────────────────────
 function getRecord(recordId) {
   return records[recordId] || null;
