@@ -35,7 +35,7 @@ async function generateAssignment(investigatorId, targetRecordId, lexicon, compl
         difficulty_tier: completedRecordsCount <= 2 ? 'Apprentice' : completedRecordsCount <= 5 ? 'Novice' : 'Journeyman',
         status: 'active'
       })
-      .select()
+      .select('id')
       .single();
     if (error) { console.error('generateAssignment insert:', error); return null; }
 
