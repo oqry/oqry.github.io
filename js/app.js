@@ -14,7 +14,11 @@ const investigator = {
   currentRecordId: null,
   currentStage: 0,
   hintPetitions: {},
-  submissionCount: 0
+  submissionCount: 0,
+  introductionSeen: false,
+  hintsRevealed: [],
+  correspondenceTrail: [],
+  reviewEndsAt: null
 };
 
 // ── App Root ──────────────────────────────────────────────────
@@ -267,10 +271,10 @@ function showScreen(screenName, data = {}) {
   currentTypewriterSkipped = false;
   window.scrollTo(0, 0);
   app.innerHTML = screens[screenName](data);
-  initScreen(screenName);
+  initScreen(screenName, data);
 }
 
-function initScreen(screenName) {
+function initScreen(screenName, data = {}) {
   app.querySelectorAll('[data-text]').forEach(el => {
     el.textContent = '';
     el.style.visibility = 'hidden';
@@ -293,13 +297,15 @@ function initScreen(screenName) {
     el.style.pointerEvents = 'none';
   });
 
+  const instantIntro = screenName === 'investigation' && data.resume && investigator.introductionSeen;
+
   const sequence = [];
 
   if (screenName === 'firstEncounter') {
     app.querySelectorAll('.opening-statement [data-text]').forEach(el => {
       sequence.push({ element: el, mode: 'typeset' });
     });
-  } else {
+  } else if (!instantIntro) {
     app.querySelectorAll('.curator-panel [data-text]').forEach(el => {
       if (!el.dataset.skip) {
         sequence.push({ element: el, mode: 'curator' });
@@ -313,7 +319,7 @@ function initScreen(screenName) {
   }
   app.addEventListener('click', skipTypingOnClick);
 
-  typewriteSequence(sequence, () => {
+  function afterIntro() {
     app.removeEventListener('click', skipTypingOnClick);
     setTimeout(() => {
       app.querySelectorAll(
@@ -329,7 +335,17 @@ function initScreen(screenName) {
         el.style.pointerEvents = 'auto';
       });
 
-      if (screenName === 'archive') {
+      if (screenName === 'investigation') {
+        if (!investigator.introductionSeen) {
+          investigator.introductionSeen = true;
+          saveInvestigator();
+        }
+        if (data.resume) {
+          renderFaithfulResume(data.recordId);
+        } else {
+          scrollToBottom();
+        }
+      } else if (screenName === 'archive') {
         const assignmentPanel = document.querySelector('.assignment-puzzle .curator-panel');
         const form = document.querySelector('.assignment-puzzle .finding-form');
         if (form) {
@@ -383,7 +399,17 @@ function initScreen(screenName) {
         scrollToBottom();
       }
     }, 400);
-  });
+  }
+
+  if (instantIntro) {
+    app.querySelectorAll('.curator-panel [data-text]').forEach(el => {
+      el.textContent = el.getAttribute('data-text') || '';
+      el.style.visibility = 'visible';
+    });
+    afterIntro();
+  } else {
+    typewriteSequence(sequence, afterIntro);
+  }
 }
 
 // ── Curator Response ──────────────────────────────────────────
@@ -466,6 +492,101 @@ function showStagePrompt(recordId, stageIndex) {
     const newInput = document.getElementById('finding-input');
     if (newInput) newInput.value = '';
   }, 200);
+}
+
+// ── Faithful Resume ───────────────────────────────────────────
+function renderFaithfulResume(recordId) {
+  const screenContent = document.querySelector('.screen-content');
+  if (!screenContent) return;
+
+  const record = getRecord(recordId);
+  const tier = getInvestigationTier(record);
+  const stage = tier.stages[investigator.currentStage];
+
+  const trail = investigator.correspondenceTrail;
+  let i = 0;
+  while (i < trail.length) {
+    const entry = trail[i];
+    if (entry.type === 'finding') {
+      const submissionLine = document.createElement('div');
+      submissionLine.className = 'finding-submission';
+      submissionLine.innerHTML =
+        '<p class="finding-submission-label">Finding submitted</p>' +
+        '<p class="finding-submission-text"></p>';
+      submissionLine.querySelector('.finding-submission-text').textContent = entry.text;
+      screenContent.appendChild(submissionLine);
+      i++;
+    } else {
+      const group = [];
+      while (i < trail.length && trail[i].type === 'curator') {
+        group.push(trail[i].text);
+        i++;
+      }
+      const panel = document.createElement('div');
+      panel.className = 'curator-panel curator-response';
+      panel.innerHTML =
+        '<p class="curator-label">The Curator</p>' +
+        group.map(text => `<p class="curator-voice">${text}</p>`).join('');
+      screenContent.appendChild(panel);
+    }
+  }
+
+  if (stage && stage.hint1 && investigator.hintsRevealed.length > 0) {
+    const hintTexts = [...investigator.hintsRevealed]
+      .sort()
+      .map(level => level === 1 ? stage.hint1 : (stage.hint2 || stage.hint1));
+    const panel = document.createElement('div');
+    panel.className = 'curator-panel curator-response';
+    panel.innerHTML =
+      '<p class="curator-label">The Curator</p>' +
+      '<p class="curator-voice">The Curator offers the following observation, in the hope that it may direct your attention more precisely.</p>' +
+      hintTexts.map(text => `<p class="curator-voice">${text}</p>`).join('') +
+      '<p class="curator-voice">The Society trusts that you will arrive at your finding through your own careful observation.</p>';
+    screenContent.appendChild(panel);
+  }
+
+  showStagePrompt(recordId, investigator.currentStage);
+
+  const hintSection = document.getElementById('hint-section');
+  if (hintSection) {
+    hintSection.style.display = investigator.hintsRevealed.length > 0 ? 'block' : 'none';
+  }
+
+  if (investigator.reviewEndsAt) {
+    const remaining = investigator.reviewEndsAt - Date.now();
+    const input = document.getElementById('finding-input');
+    const submitBtn = document.getElementById('submit-btn');
+    const responseArea = document.getElementById('curator-response-area');
+    const investigationPrompt = document.querySelector('.stage-prompt-block .investigation-prompt');
+    const findingForm = document.querySelector('.stage-prompt-block .finding-form');
+    const hintSect = document.getElementById('hint-section');
+
+    if (input) input.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+
+    const findingEntry = [...trail].reverse().find(e => e.type === 'finding');
+    const finding = findingEntry ? findingEntry.text : '';
+
+    if (responseArea) {
+      responseArea.innerHTML = `
+        <div class="reviewing-panel breathing" id="reviewing-panel">
+          <p class="curator-voice">The Curator is reviewing your finding. Patience is a virtue.</p>
+        </div>
+      `;
+    }
+
+    const reviewCtx = {
+      recordId, finding, responseArea,
+      investigationPrompt, findingForm,
+      hintSection: hintSect, input, submitBtn
+    };
+
+    setTimeout(() => {
+      finalizeFindingReview(reviewCtx);
+    }, Math.max(0, remaining));
+  }
+
+  scrollToBottom();
 }
 
 // ── Evaluate Finding ──────────────────────────────────────────
@@ -604,6 +725,7 @@ referenceEntry: (data = {}) => `
             ).join('')}
           </div>
 
+          ${data.resume ? '' : `
           <div class="finding-form">
             <input
               type="text"
@@ -632,11 +754,61 @@ referenceEntry: (data = {}) => `
               Petition the Curator for Guidance
             </button>
           </div>
+          `}
 
         </main>
       </div>
     `;
   },
+
+  returnAndReflection: (data = {}) => {
+    const record = getRecord(data.recordId);
+    return `
+      <div class="screen" id="screen-returnAndReflection">
+        ${masthead(record ? record.designation : '')}
+        <main class="screen-content">
+
+          <div class="society-seal">✦ ✦ ✦</div>
+
+          <div class="curator-panel" id="curator-returnAndReflection">
+            <p class="curator-label">The Curator</p>
+            <p class="curator-voice" data-text="This Record already rests in your Ledger, Investigator."></p>
+            <p class="curator-voice" data-text="It was recovered through your own careful observation. You are welcome to review it in the Archive."></p>
+          </div>
+
+          <div class="screen-actions">
+            <button class="btn-secondary" onclick="showScreen('archive')">
+              Return to Archive
+            </button>
+          </div>
+
+        </main>
+      </div>
+    `;
+  },
+
+  markerGate: (data = {}) => `
+    <div class="screen" id="screen-markerGate">
+      ${masthead()}
+      <main class="screen-content">
+
+        <div class="society-seal">✦ ✦ ✦</div>
+
+        <div class="curator-panel" id="curator-markerGate">
+          <p class="curator-label">The Curator</p>
+          <p class="curator-voice" data-text="The Society notes your diligence, Investigator. This marker, however, concerns a matter not presently assigned to you."></p>
+          <p class="curator-voice" data-text="Your current Inquiry awaits your attention."></p>
+        </div>
+
+        <div class="screen-actions">
+          <button class="btn-primary" onclick="continueInquiry()">
+            Continue Inquiry
+          </button>
+        </div>
+
+      </main>
+    </div>
+  `,
 
   register: (data = {}) => `
     <div class="screen" id="screen-register">
@@ -906,10 +1078,43 @@ function submitReferenceNumber() {
 }
 
 // ── Investigation Logic ───────────────────────────────────────
+function hasActiveProgress(recordId) {
+  return recordId === investigator.currentRecordId &&
+    !investigator.completedRecords.includes(recordId) &&
+    (investigator.currentStage > 0 ||
+     investigator.correspondenceTrail.length > 0 ||
+     investigator.introductionSeen);
+}
+
 function beginInvestigation(recordId) {
+  if (hasActiveProgress(recordId)) {
+    showScreen('investigation', { recordId, resume: true });
+    return;
+  }
+
   investigator.currentRecordId = recordId;
   investigator.currentStage = 0;
+  investigator.introductionSeen = false;
+  investigator.hintsRevealed = [];
+  investigator.correspondenceTrail = [];
+  investigator.reviewEndsAt = null;
+  saveInvestigator();
   showScreen('investigation', { recordId });
+}
+
+function continueInquiry() {
+  const recordId = investigator.currentRecordId;
+  if (!recordId) {
+    showScreen('archive');
+    return;
+  }
+  beginInvestigation(recordId);
+}
+
+function pushCorrespondence(texts) {
+  texts.forEach(text => {
+    investigator.correspondenceTrail.push({ type: 'curator', text });
+  });
 }
 
 function submitFinding(recordId) {
@@ -917,7 +1122,6 @@ function submitFinding(recordId) {
   const submitBtn = document.getElementById('submit-btn');
   const responseArea = document.getElementById('curator-response-area');
   const finding = input ? input.value : '';
-  const record = getRecord(recordId);
 
   if (!finding.trim()) {
     showCuratorResponse(
@@ -928,10 +1132,6 @@ function submitFinding(recordId) {
   }
 
   investigator.submissionCount++;
-
-  const tier = getInvestigationTier(record);
-  const stages = tier.stages;
-  const stage = stages[investigator.currentStage];
 
   const investigationPrompt = document.querySelector('.stage-prompt-block .investigation-prompt')
     || document.querySelector('.investigation-prompt');
@@ -947,6 +1147,9 @@ function submitFinding(recordId) {
   submissionLine.querySelector('.finding-submission-text').textContent = finding;
   responseArea.parentNode.insertBefore(submissionLine, responseArea);
 
+  investigator.correspondenceTrail.push({ type: 'finding', text: finding });
+  saveInvestigator();
+
   [investigationPrompt, findingForm, hintSection].forEach(el => {
     if (el) {
       el.style.transition = 'opacity 0.4s ease';
@@ -955,11 +1158,18 @@ function submitFinding(recordId) {
     }
   });
 
+  const reviewingText = 'The Curator is reviewing your finding. Patience is a virtue.';
+
   responseArea.innerHTML = `
     <div class="reviewing-panel" id="reviewing-panel">
-      <p class="curator-voice" data-text="The Curator is reviewing your finding. Patience is a virtue."></p>
+      <p class="curator-voice" data-text="${reviewingText}"></p>
     </div>
   `;
+
+  pushCorrespondence([reviewingText]);
+
+  investigator.reviewEndsAt = Date.now() + 15000 * investigator.submissionCount;
+  saveInvestigator();
 
   const reviewPanel = document.getElementById('reviewing-panel');
   const reviewVoice = reviewPanel.querySelector('[data-text]');
@@ -972,117 +1182,141 @@ function submitFinding(recordId) {
     }, 300);
   });
 
-  function evaluateAndRespond() {
-    const p = document.getElementById('reviewing-panel');
-    if (p) p.classList.remove('breathing');
+  const reviewCtx = { recordId, finding, responseArea, investigationPrompt, findingForm, hintSection, input, submitBtn };
 
-    const accepted = evaluateFinding(finding, stage);
-
-    if (accepted) {
-      investigator.submissionCount = 0;
-
-      if (stage.lexiconEntries) {
-        stage.lexiconEntries.forEach(entry => {
-          if (!investigator.lexicon.includes(entry)) {
-            investigator.lexicon.push(entry);
-          }
-        });
-      }
-      saveInvestigator();
-
-      if (investigator.cloudId) {
-        if (stage.lexiconEntries) {
-          stage.lexiconEntries.forEach(word => {
-            saveLexiconEntry(investigator.cloudId, word, recordId);
-          });
-        }
-      }
-
-      const nextStageIndex = investigator.currentStage + 1;
-      const hasNextStage = nextStageIndex < stages.length;
-
-      if (hasNextStage) {
-        showCuratorResponse(
-          responseArea,
-          stage.acceptanceResponse,
-          () => {
-            investigator.currentStage = nextStageIndex;
-            saveInvestigator();
-            showStagePrompt(recordId, nextStageIndex);
-          }
-        );
-      } else {
-        if (!investigator.completedRecords.includes(recordId)) {
-          investigator.completedRecords.push(recordId);
-        }
-        saveInvestigator();
-
-        if (investigator.cloudId) {
-          saveCompletedRecord(investigator.cloudId, recordId);
-        }
-
-        // Show acceptance response ONCE, then proceed
-        showCuratorResponse(
-          responseArea,
-          stage.acceptanceResponse,
-          () => {
-            if (!investigator.alias) {
-              showRegistrationInline(recordId);
-            } else {
-              showScreen('completion', { recordId });
-            }
-          }
-        );
-      }
-
-    } else {
-      const hintSect = document.getElementById('hint-section');
-      if (hintSect) hintSect.style.display = 'block';
-
-      const wrongCase = isWrongCase(finding, stage);
-
-      const incorrectMessage = wrongCase
-        ? [
-            'Your finding does not agree with other observations.',
-            'The Society\'s records demand precision. Transcribe what you observe exactly as it is inscribed upon the memorial — every letter faithfully recorded.'
-          ]
-        : [
-            'Your finding does not agree with other observations.',
-            'Return your attention to what stands before you, and submit only what you are able to verify directly.'
-          ];
-
-      showCuratorResponse(
-        responseArea,
-        incorrectMessage,
-        () => {
-          const screenContent = document.querySelector('.screen-content');
-          [investigationPrompt, findingForm, hintSection].forEach(el => {
-            if (el) {
-              screenContent.appendChild(el);
-              el.style.display = el === findingForm ? 'flex' : 'block';
-              el.style.opacity = '0';
-              el.style.transition = 'opacity 0.6s ease';
-              setTimeout(() => { el.style.opacity = '1'; }, 50);
-            }
-          });
-          if (input) {
-            input.disabled = false;
-            input.value = '';
-          }
-          if (submitBtn) submitBtn.disabled = false;
-          scrollToBottom();
-        }
-      );
-    }
+  function runReview() {
+    finalizeFindingReview(reviewCtx);
   }
 
   reviewPanel.addEventListener('click', () => {
     currentTypewriterSkipped = true;
     clearTimeout(reviewTimeout);
-    evaluateAndRespond();
+    runReview();
   });
 
-  const reviewTimeout = setTimeout(evaluateAndRespond, 15000 * investigator.submissionCount);
+  const reviewTimeout = setTimeout(runReview, Math.max(0, investigator.reviewEndsAt - Date.now()));
+}
+
+// ── Finalize Finding Review ───────────────────────────────────
+function finalizeFindingReview({ recordId, finding, responseArea, investigationPrompt, findingForm, hintSection, input, submitBtn }) {
+  const p = document.getElementById('reviewing-panel');
+  if (p) p.classList.remove('breathing');
+
+  investigator.reviewEndsAt = null;
+  saveInvestigator();
+
+  const record = getRecord(recordId);
+  const tier = getInvestigationTier(record);
+  const stages = tier.stages;
+  const stage = stages[investigator.currentStage];
+
+  const accepted = evaluateFinding(finding, stage);
+
+  if (accepted) {
+    investigator.submissionCount = 0;
+
+    if (stage.lexiconEntries) {
+      stage.lexiconEntries.forEach(entry => {
+        if (!investigator.lexicon.includes(entry)) {
+          investigator.lexicon.push(entry);
+        }
+      });
+    }
+    pushCorrespondence(stage.acceptanceResponse);
+    saveInvestigator();
+
+    if (investigator.cloudId) {
+      if (stage.lexiconEntries) {
+        stage.lexiconEntries.forEach(word => {
+          saveLexiconEntry(investigator.cloudId, word, recordId);
+        });
+      }
+    }
+
+    const nextStageIndex = investigator.currentStage + 1;
+    const hasNextStage = nextStageIndex < stages.length;
+
+    if (hasNextStage) {
+      showCuratorResponse(
+        responseArea,
+        stage.acceptanceResponse,
+        () => {
+          investigator.currentStage = nextStageIndex;
+          investigator.hintsRevealed = [];
+          saveInvestigator();
+          showStagePrompt(recordId, nextStageIndex);
+        }
+      );
+    } else {
+      if (!investigator.completedRecords.includes(recordId)) {
+        investigator.completedRecords.push(recordId);
+      }
+      investigator.introductionSeen = false;
+      investigator.hintsRevealed = [];
+      investigator.correspondenceTrail = [];
+      investigator.reviewEndsAt = null;
+      saveInvestigator();
+
+      if (investigator.cloudId) {
+        saveCompletedRecord(investigator.cloudId, recordId);
+      }
+
+      // Show acceptance response ONCE, then proceed
+      showCuratorResponse(
+        responseArea,
+        stage.acceptanceResponse,
+        () => {
+          if (!investigator.alias) {
+            showRegistrationInline(recordId);
+          } else {
+            showScreen('completion', { recordId });
+          }
+        }
+      );
+    }
+
+  } else {
+    const hintSect = document.getElementById('hint-section');
+    if (hintSect) hintSect.style.display = 'block';
+
+    const wrongCase = isWrongCase(finding, stage);
+
+    const incorrectMessage = wrongCase
+      ? [
+          'Your finding does not agree with other observations.',
+          'The Society\'s records demand precision. Transcribe what you observe exactly as it is inscribed upon the memorial — every letter faithfully recorded.'
+        ]
+      : [
+          'Your finding does not agree with other observations.',
+          'Return your attention to what stands before you, and submit only what you are able to verify directly.'
+        ];
+
+    pushCorrespondence(incorrectMessage);
+    saveInvestigator();
+
+    showCuratorResponse(
+      responseArea,
+      incorrectMessage,
+      () => {
+        const screenContent = document.querySelector('.screen-content');
+        [investigationPrompt, findingForm, hintSection].forEach(el => {
+          if (el) {
+            screenContent.appendChild(el);
+            el.style.display = el === findingForm ? 'flex' : 'block';
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.6s ease';
+            setTimeout(() => { el.style.opacity = '1'; }, 50);
+          }
+        });
+        if (input) {
+          input.disabled = false;
+          input.value = '';
+        }
+        if (submitBtn) submitBtn.disabled = false;
+        scrollToBottom();
+      }
+    );
+  }
 }
 
 // ── Hint Petition ─────────────────────────────────────────────
@@ -1114,6 +1348,12 @@ function petitionForHint(recordId) {
   const hintDelay = Math.min(15000 * petitionCount, 60000);
 
   setTimeout(() => {
+    const hintLevel = petitionCount === 1 ? 1 : 2;
+    if (!investigator.hintsRevealed.includes(hintLevel)) {
+      investigator.hintsRevealed.push(hintLevel);
+      saveInvestigator();
+    }
+
     showCuratorResponse(
       responseArea,
       [
@@ -1312,7 +1552,11 @@ async function submitRecovery() {
     currentRecordId: null,
     currentStage: 0,
     hintPetitions: {},
-    submissionCount: 0
+    submissionCount: 0,
+    introductionSeen: false,
+    hintsRevealed: [],
+    correspondenceTrail: [],
+    reviewEndsAt: null
   });
   saveInvestigator();
 
@@ -1590,7 +1834,11 @@ function devReset() {
     currentRecordId: null,
     currentStage: 0,
     hintPetitions: {},
-    submissionCount: 0
+    submissionCount: 0,
+    introductionSeen: false,
+    hintsRevealed: [],
+    correspondenceTrail: [],
+    reviewEndsAt: null
   });
   showScreen('firstEncounter', { recordId: 'r001' });
 }
@@ -1607,7 +1855,11 @@ function devGoArchive(cloudId = null) {
     currentRecordId: 'r001',
     currentStage: 0,
     hintPetitions: {},
-    submissionCount: 0
+    submissionCount: 0,
+    introductionSeen: false,
+    hintsRevealed: [],
+    correspondenceTrail: [],
+    reviewEndsAt: null
   });
   if (cloudId) investigator.cloudId = cloudId;
   saveInvestigator();
@@ -1625,7 +1877,11 @@ function devGoInvestigation(recordId = 'r001') {
     currentRecordId: recordId,
     currentStage: 0,
     hintPetitions: {},
-    submissionCount: 0
+    submissionCount: 0,
+    introductionSeen: false,
+    hintsRevealed: [],
+    correspondenceTrail: [],
+    reviewEndsAt: null
   });
   saveInvestigator();
   showScreen('firstEncounter', { recordId });
@@ -1642,7 +1898,11 @@ function devGoCompletion(recordId = 'r001') {
     currentRecordId: recordId,
     currentStage: 0,
     hintPetitions: {},
-    submissionCount: 0
+    submissionCount: 0,
+    introductionSeen: false,
+    hintsRevealed: [],
+    correspondenceTrail: [],
+    reviewEndsAt: null
   });
   saveInvestigator();
   showScreen('completion', { recordId });
@@ -1662,8 +1922,22 @@ const legacyRecordParam = urlParams.get('r');  // deprecated
 if (markerParam) {
   const resolvedRecordId = resolveMarkerCode(markerParam);
   if (resolvedRecordId) {
-    investigator.currentRecordId = resolvedRecordId;
-    showScreen('firstEncounter', { recordId: resolvedRecordId });
+    if (!investigator.alias) {
+      // Stranger — unchanged first-encounter flow
+      investigator.currentRecordId = resolvedRecordId;
+      saveInvestigator();
+      showScreen('firstEncounter', { recordId: resolvedRecordId });
+    } else if (investigator.completedRecords.includes(resolvedRecordId)) {
+      // Already recovered — do not touch currentRecordId
+      showScreen('returnAndReflection', { recordId: resolvedRecordId });
+    } else if (hasActiveProgress(resolvedRecordId)) {
+      // Same Record as an investigation already underway — resume faithfully
+      showScreen('investigation', { recordId: resolvedRecordId, resume: true });
+    } else {
+      // Recognized Investigator, marker unrelated to their active Record —
+      // do not overwrite currentRecordId with the scanned marker
+      showScreen('markerGate', {});
+    }
   } else {
     // Unknown or malformed Reference Number — invite manual entry
     showScreen('referenceEntry', { unknown: true });
@@ -1671,6 +1945,7 @@ if (markerParam) {
 } else if (legacyRecordParam && records[legacyRecordParam]) {
   console.warn('[SOI] The ?r= parameter is deprecated. Markers now use ?m=CODE.');
   investigator.currentRecordId = legacyRecordParam;
+  saveInvestigator();
   showScreen('firstEncounter', { recordId: legacyRecordParam });
 } else {
   // No marker presented — the threshold of the Archive
