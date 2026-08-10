@@ -2,13 +2,19 @@ name: Supabase Keep-Alive
 
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '23 6 */3 * *'
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      - name: Wait a random amount of time
+        if: github.event_name == 'schedule'
+        run: |
+          DELAY=$((RANDOM % 18001))
+          echo "Sleeping for $DELAY seconds (about $((DELAY / 60)) minutes) before the heartbeat..."
+          sleep $DELAY
       - name: Write heartbeat row
         run: |
           response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
