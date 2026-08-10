@@ -11,14 +11,17 @@ jobs:
     steps:
       - name: Write heartbeat row
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
             -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/keep_alive" \
-            -H "apikey: ${{ secrets.SUPABASE_SECRET_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_SECRET_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
             -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
             -d '{}')
-          echo "HTTP status: $response"
-          if [ "$response" != "201" ]; then
-            echo "Heartbeat failed with status $response"
+          echo "Response from Supabase:"
+          echo "$response"
+          status=$(echo "$response" | grep -o 'HTTP_STATUS:[0-9]*' | cut -d: -f2)
+          if [ "$status" != "201" ]; then
+            echo "Heartbeat failed with status $status"
             exit 1
           fi
