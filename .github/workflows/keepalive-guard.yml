@@ -1,0 +1,35 @@
+name: Keepalive Guard
+
+on:
+  schedule:
+    - cron: '17 5 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Write a heartbeat commit when needed
+        run: |
+          last_commit=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          days_idle=$(( (now - last_commit) / 86400 ))
+          echo "Days since the repository last changed: $days_idle"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$days_idle" -ge 40 ]; then
+            echo "Making a heartbeat commit to keep the schedules alive."
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            mkdir -p .github
+            echo "Keepalive guard last ran (UTC): $(date -u)" > .github/last-activity.txt
+            git add .github/last-activity.txt
+            git commit -m "chore: keepalive guard heartbeat" || echo "Nothing new to commit."
+            git push
+          else
+            echo "The repository changed $days_idle days ago, well within 60. No heartbeat needed."
+          fi
